@@ -1,0 +1,292 @@
+---
+title: "P1_Social_Engagement"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(pacman)
+p_load(tidyverse, lme4, ggunchained, wesanderson)
+```
+
+Welcome to SOCIAL ENGAGEMENT,
+this markdown is divided into following sections:
+-preprocessing
+-models
+-results
+
+
+# PREPROCESSING
+Based on code from Fabio's day 4 Rmd
+
+Outline:
+a) working on raw data
+-Loading raw data from the scanner
+-Clean data (standardize dominant eye)
+-Plotting raw data, 2 plots
+-Event estimation
+-Plotting raw data, while marking estimated events, 4 plots
+
+b) working on event data
+-Create Fixations and Saccades datasets / Load in Fixations and Saccards from EyeLink
+
+## A)
+### loading data in right format
+```{r}
+# loading data
+Samples_raw <- read_csv('samples2018_2019.csv') %>%
+  filter(Task == "SocialEngagement")
+
+# variable types
+Samples_raw <- Samples_raw %>%
+  mutate(
+    ParticipantID = as.factor(ParticipantID),
+    Trial = as.factor(Trial),
+    DominantEye = ifelse(is.na(RightEye_PositionX), 'Left', 'Right'),
+    RightEye_PositionX = as.numeric(RightEye_PositionX),
+    RightEye_PositionY = as.numeric(RightEye_PositionY),
+    RightEye_PupilSize = as.numeric(RightEye_PupilSize),
+    RightEye_MeanVelocityX = as.numeric(RightEye_MeanVelocityX),
+    RightEye_MeanVelocityY = as.numeric(RightEye_MeanVelocityY),
+    RightEye_MeanAccellerationX = as.numeric(RightEye_MeanAccellerationX),
+    RightEye_MeanAccellerationY = as.numeric(RightEye_MeanAccellerationY),
+    LeftEye_PositionX = as.numeric(LeftEye_PositionX),
+    LeftEye_PositionY = as.numeric(LeftEye_PositionY),
+    LeftEye_PupilSize = as.numeric(LeftEye_PupilSize),
+    LeftEye_MeanVelocityX = as.numeric(LeftEye_MeanVelocityX),
+    LeftEye_MeanVelocityY = as.numeric(LeftEye_MeanVelocityY),
+    LeftEye_MeanAccellerationX = as.numeric(LeftEye_MeanAccellerationX),
+    LeftEye_MeanAccellerationY = as.numeric(LeftEye_MeanAccellerationY),
+    Year = as.factor(Year),
+    Task = as.factor(Task),
+    ParticipantGender = as.factor(ParticipantGender),     
+    SearchOrder = as.factor(SearchOrder),
+    # sampling rate "is"" 1000 Hz, we're converting to miliseconds
+    TrialTime = as.numeric(TrialTime*0.001),
+    TotTrialLengthInSeconds = as.numeric(TotTrialLengthInSeconds)
+  )
+```
+
+
+### cleaning of Samples
+```{r}
+Samples <- Samples_raw %>%
+  # convert right- and left- data into a single column
+  # note: position is in pixels, [0, 0] would be the bottom left corner
+  # some machines do it differently
+  mutate(
+    PositionX = ifelse(DominantEye == 'Right', RightEye_PositionX, LeftEye_PositionX),
+    PositionY = ifelse(DominantEye == 'Right', RightEye_PositionY, LeftEye_PositionY),
+    PupilSize = ifelse(DominantEye == 'Right', RightEye_PupilSize, LeftEye_PupilSize),
+    MeanVelocityX = ifelse(DominantEye == 'Right', RightEye_MeanVelocityX, LeftEye_MeanVelocityX),
+    MeanVelocityY = ifelse(DominantEye == 'Right', RightEye_MeanVelocityY, LeftEye_MeanVelocityY),
+    MeanAccellerationX = ifelse(DominantEye == 'Right', RightEye_MeanAccellerationX, LeftEye_MeanAccellerationX),
+    MeanAccellerationY = ifelse(DominantEye == 'Right', RightEye_MeanAccellerationY, LeftEye_MeanAccellerationY)
+  ) %>% 
+  # clear out the mess
+  select(-c(RightEye_PositionX, RightEye_PositionY, RightEye_PupilSize, RightEye_MeanVelocityX, RightEye_MeanVelocityY, RightEye_MeanAccellerationX, RightEye_MeanAccellerationY, LeftEye_PositionX, LeftEye_PositionY, LeftEye_PupilSize, LeftEye_MeanVelocityX, LeftEye_MeanVelocityY, LeftEye_MeanAccellerationX, LeftEye_MeanAccellerationY))
+
+rm(Samples_raw)
+```
+
+
+### plotting raw data
+```{r}
+x = subset(Samples, ParticipantID == '2019-2019-5_1_f2')
+ggplot(x, aes(x = PositionX, y = PositionY, color = TrialTime)) +
+  geom_point(size = 0.3) +
+  ggtitle(paste('Sample data, subject:', x$ParticipantID, ', task:', x$Task )) +
+  xlab(paste('Position X (', x$DominantEye, ')', sep = '')) +
+  ylab(paste('Position Y (', x$DominantEye, ')', sep = '')) +
+  xlim(0,1500) + ylim(0,1250) +
+  facet_wrap(~Trial, ncol = 4) +
+  theme_janco_point() +
+  scale_color_gradientn(colours = wes_palette("Zissou1", 21, type = "continuous"))
+```
+
+
+### estimation of events
+```{r}
+Samples2 <- Samples %>% 
+  group_by(ParticipantID, Trial) %>%
+  ## if velocity is < 20 degrees/sec, the eye is "not moving"
+  mutate(
+    # velocity goes from minus to plus depending on the direction, ORIGINAL = -20, 20
+    LowVelocity = ifelse(
+      as.numeric(MeanVelocityX)>-10 &
+      as.numeric(MeanVelocityX)<10, 1, 0)
+  ) %>%
+  # assume movement during the first 9 rows (purely to make the code work)
+  mutate(LowVelocity = coalesce(LowVelocity, 0)) %>%
+  
+  ## create rolling window for averaging, ORIGINAL = 20
+  mutate(Event = (cumsum(LowVelocity) - lag(cumsum(LowVelocity), n = 5))/5) %>%
+  
+  ## the next lines are very hacky
+  ## if average is > .9, count as fixation
+  ## ORIGINAL = 0.75
+  mutate(FixationNum = ifelse(Event >= 0.75, 1, 0),
+         .count = ifelse(c(0, diff(FixationNum)) == 1, 1, 0),
+         .count = coalesce(.count, 0),
+         .groups = cumsum(.count),
+         FixationNum = ifelse(FixationNum == 1, .groups, NA)) %>%
+  select(-c(.count, .groups)) %>% 
+  
+  ## otherwise count as saccade
+  mutate(SaccadeNum = ifelse(Event < 0.75, 1, 0),
+         .count = ifelse(c(0, diff(SaccadeNum)) == 1, 1, 0),
+         .count = coalesce(.count, 0),
+         .groups = cumsum(.count),
+         SaccadeNum = ifelse(SaccadeNum == 1, .groups, NA)) %>%
+  select(-c(.count, .groups)) %>% 
+  mutate(Event = ifelse(Event >= 0.75, 'Fixation', 'Saccade'))
+```
+
+
+### plotting event estimation: spatial
+```{r}
+# PLOT FOR TRIAL 1
+ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & Trial == 1 & !is.na(Event)),
+       aes(x = PositionX, y = PositionY, color = Event)) +
+  geom_point(size = 0.3) +
+  ## the following lines are for aesthetic purposes only 
+  scale_color_manual(values = c('#6291D6', '#F0B952'), name = 'Event') +
+  guides(colour = guide_legend(override.aes = list(size=3))) +
+  ggtitle(paste('Sample data with event estimation, trial', x$Trial)) +
+  xlab(paste('Position X (', x$DominantEye, ')', sep = '')) +
+  ylab(paste('Position Y (', x$DominantEye, ')', sep = '')) +
+  xlim(0,1500) + ylim(0,1250) +
+  theme_janco_point()
+  
+
+# FACET PLOT FOR EVERY TRIAL
+ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & !is.na(Event)),
+       aes(x = PositionX, y = PositionY, color = Event)) +
+  geom_point(size = 0.3) +
+  ## the following lines are for aesthetic purposes only 
+  scale_color_manual(values = c('#6291D6', '#F0B952'), name = 'Event') +
+  guides(colour = guide_legend(override.aes = list(size=3))) +
+  ggtitle('Sample data with event estimation, all trials') +
+  xlab(paste('Position X (', x$DominantEye, ')', sep = '')) +
+  ylab(paste('Position Y (', x$DominantEye, ')', sep = '')) +
+  xlim(0,1500) + ylim(0,1250) +
+  facet_wrap(~Trial, ncol = 4) +
+  theme_janco_point()
+```
+
+
+### plotting event estimation: temporal & spatial
+```{r}
+ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & Trial == 1 & !is.na(Event)),
+       aes(x = TrialTime, y = PositionY, color = Event)) +
+  geom_point(size = 0.6) +
+  ## the following lines are for aesthetic purposes only 
+  scale_color_manual(values = c('#6291D6', '#F0B952'), name = 'Event') +
+  guides(colour = guide_legend(override.aes = list(size=3))) +
+  ggtitle(paste('Time sequence plot, trial', x$Trial)) +
+  xlab('Time (s)') + ylab(paste('Position Y (', x$DominantEye, ')', sep = '')) +
+  theme_janco_point()
+
+ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & !is.na(Event)),
+       aes(x = TrialTime, y = PositionY, color = Event)) +
+  geom_point(size = 0.5) +
+  ## the following lines are for aesthetic purposes only 
+  scale_color_manual(values = c('#6291D6', '#F0B952'), name = 'Event') +
+  guides(colour = guide_legend(override.aes = list(size=3))) +
+  ggtitle('Time sequence plot, all trials') +
+  xlab('Time (s)') + ylab(paste('Position Y (', x$DominantEye, ')', sep = '')) +
+  facet_wrap(~Trial, ncol = 4) +
+  theme_janco_point()
+```
+
+
+## B
+### load EyeLink data (blackbox parameters)
+```{r}
+# load in csvs
+Fixations_raw <- read_csv('fixations2018_2019.csv')
+Saccades_raw <- read_csv('saccades2018_2019.csv')
+
+# variable types
+Fixations_EL <- Fixations_raw %>%
+  mutate(
+    ParticipantID = as.factor(ParticipantID),
+    Year = as.factor(Year),
+    Task = as.factor(Task),
+    ParticipantGender = as.factor(ParticipantGender),
+    Item = as.factor(Item)
+  )
+
+Saccades_EL <- Saccades_raw %>%
+  mutate(
+    ParticipantID = as.factor(ParticipantID),
+    Direction = as.factor(Direction),
+    Year = as.factor(Year),
+    Task = as.factor(Task),
+    ParticipantGender = as.factor(ParticipantGender),
+    Item = as.factor(Item)
+  )
+
+rm(Fixations_raw, Saccades_raw)
+```
+
+
+### Fixations & Saccades from Samples2 (own parameters)
+```{r}
+# FIXATIONS
+Fixations <- Samples2 %>% 
+  group_by(ParticipantID, Trial, FixationNum) %>% 
+  summarize(
+    Task = Task[1],
+    ParticipantGender = ParticipantGender[1],
+    SearchOrder = SearchOrder[1],
+    StartTime = min(TrialTime),
+    EndTime = max(TrialTime),
+    Duration = max(TrialTime)-min(TrialTime),
+    PositionX = median(PositionX),
+    PositionY = median(PositionY)
+  ) %>% 
+  filter(!is.na(FixationNum))
+
+# SACCADES
+Saccades <- Samples2 %>% 
+  group_by(ParticipantID, Trial, SaccadeNum) %>% 
+  summarize(
+    Task = Task[1],
+    ParticipantGender = ParticipantGender[1],
+    SearchOrder = SearchOrder[1],
+    StartTime = min(TrialTime),
+    EndTime = max(TrialTime),
+    Duration = max(TrialTime)-min(TrialTime),
+    PositionXStart = min(PositionX),
+    PositionXEnd = max(PositionX),
+    AmplitudeX = max(PositionX)-min(PositionX),
+    MeanVelocityX = median(MeanVelocityX),
+    MeanAccellerationX = median(MeanAccellerationX),
+    PositionYStart = min(PositionY),
+    PositionYEnd = max(PositionY),
+    AmplitudeY = max(PositionY)-min(PositionY),
+    MeanVelocityY = median(MeanVelocityY),
+    MeanAccellerationY = median(MeanAccellerationY)
+  ) %>% 
+  filter(!is.na(SaccadeNum))
+```
+
+
+CONTINUE AFTER DECIDING WHICH VERSION OF FIXATIONS/SACCADES ARE WE GOING WITH
+
+
+# MODELS
+
+```{r}
+
+```
+
+
+# RESULTS
+
+```{r}
+
+```
+
