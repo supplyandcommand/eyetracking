@@ -15,14 +15,16 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.align =
 ```{r libraries}
 library(tidyverse)
 library(lme4)
+library(ggridges)
+library(ggunchained)
 ```
 
 ## Load data
 
 ```{r load data}
 ## Set working directory to the relevant one on your computer
-getwd()
-setwd('/Users/au594931/Dropbox/Undervisning/4_FS2019/2019 - Eye tracking/data/Day5')
+#getwd()
+#setwd('/Users/au594931/Dropbox/Undervisning/4_FS2019/2019 - Eye tracking/data/Day5')
 
 Fixations_raw <- read_csv('fixations2018_2019.csv')
 Saccades_raw <- read_csv('saccades2018_2019.csv')
@@ -47,3 +49,95 @@ Saccades <- Saccades_raw %>%
     Item = as.factor(Item)
   )
 ```
+
+# VISUAL SEARCH 
+# FIXATIONS
+## scaling
+```{r}
+normalize <- function(x)
+{
+    return((x- min(x)) /(max(x)-min(x)))
+}
+
+Fixations_VS <- Fixations %>%
+  mutate(Duration = Duration / max(Duration),
+         StartTime = normalize(StartTime)) %>%
+  filter(Task != "SocialEngagement")
+```
+
+
+## modeling FIXATIONS
+```{r}
+m1 <- glmer(Duration ~ Task * StartTime + 
+              (1 + Task + StartTime | Item) +
+              (1 + Task + StartTime | ParticipantID),
+            family = gaussian(link=log), 
+            data = Fixations_VS,
+            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+m2 <- glmer(Duration ~ Task * StartTime + 
+              (1 + Task | Item) + 
+              (1 + Task | ParticipantID) +
+              (1 + Task * StartTime | ParticipantID), 
+            family = gaussian (link = "log"), 
+            data = Fixations_VS,
+            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+```
+
+### plotting models FIXATIONS
+```{r}
+summary(m2)
+```
+
+# SACCADES
+## scaling
+```{r}
+Saccades_VS <- Saccades %>%
+  mutate()
+```
+
+
+## modeling
+```{r}
+
+```
+
+---
+
+# SOCIAL ENGAGMENT
+```{r}
+Fixations_SE_raw <- read_csv("logfilesSE.csv") %>%
+  full_join(Fixations, by = c("Task", "Trial", "ParticipantID")) %>%
+  filter(Task == "SocialEngagement" & Year == "2018") %>%
+  select(-Item)
+
+Fixations_SE <- Fixations_SE_raw %>%
+  mutate(stim_person = ifelse(str_detect(Video, "m_"), "Male", "Female"),
+         direct = ifelse(str_detect(Video, "dir"), "Direct", "Non-direct"),
+         ost = ifelse(str_detect(Video, "_\\+o"), "Ostentive", "Non-ostentive")) %>%
+  mutate(PupilSize = PupilSize / max(PupilSize),
+         StartTime = StartTime / max(StartTime))
+
+
+```
+
+## modeling
+```{r}
+mSE_pup1 <- glmer(PupilSize ~ direct * ost +
+                    (1 + StartTime + stim_person | ParticipantID) +
+                    (1 + direct * ost | ParticipantID),
+                  family = gaussian(link=log), 
+                  data = Fixations_SE,
+                  control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+```
+
+## plotting
+```{r}
+summary(mSE_pup1)
+
+ggplot(Fixations_SE, aes(x = StartTime, y = PupilSize, 
+                         color = ost)) +
+  geom_smooth() +
+  facet_grid(ParticipantID~direct)
+```
+
