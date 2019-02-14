@@ -1,5 +1,5 @@
 ---
-title: "P1_Social_Engagement"
+title: "P1_Visual Search"
 output: html_document
 ---
 
@@ -10,7 +10,7 @@ library(pacman)
 p_load(tidyverse, lme4, ggunchained, wesanderson)
 ```
 
-Welcome to SOCIAL ENGAGEMENT,
+Welcome,
 this markdown is divided into following sections:
 -preprocessing
 -models
@@ -30,13 +30,14 @@ a) working on raw data
 
 b) working on event data
 -Create Fixations and Saccades datasets / Load in Fixations and Saccards from EyeLink
+-
 
 ## A)
 ### loading data in right format
 ```{r}
 # loading data
 Samples_raw <- read_csv('samples2018_2019.csv') %>%
-  filter(Task == "SocialEngagement")
+  filter(Task == "VisualSearch")
 
 # variable types
 Samples_raw <- Samples_raw %>%
@@ -93,7 +94,7 @@ rm(Samples_raw)
 
 ### plotting raw data
 ```{r}
-x = subset(Samples, ParticipantID == '2019-2019-5_1_f2')
+x = subset(Samples, ParticipantID == '2019-2019-1_1_m11')
 ggplot(x, aes(x = PositionX, y = PositionY, color = TrialTime)) +
   geom_point(size = 0.3) +
   ggtitle(paste('Sample data, subject:', x$ParticipantID, ', task:', x$Task )) +
@@ -107,24 +108,21 @@ ggplot(x, aes(x = PositionX, y = PositionY, color = TrialTime)) +
 
 
 ### estimation of events
---> we need to make sure that our values are also acceptable from a litterature point of view. I.e., Fabio said that velocity cut-off for saccade had been reported as between 15-50 (right now we have 10 which might be somewhat low). 
---> generally we made the parameters less conservative based on visual inspection. 
-
 ```{r}
 Samples2 <- Samples %>% 
   group_by(ParticipantID, Trial) %>%
   ## if velocity is < 20 degrees/sec, the eye is "not moving"
   mutate(
-    # velocity goes from minus to plus depending on the direction, ORIGINAL = -20, 20. 
+    # velocity goes from minus to plus depending on the direction, ORIGINAL = -20, 20
     LowVelocity = ifelse(
-      as.numeric(MeanVelocityX)>-5 & #changed to 15. 
-      as.numeric(MeanVelocityX)<5, 1, 0)
+      as.numeric(MeanVelocityX)>-10 &
+      as.numeric(MeanVelocityX)<10, 1, 0)
   ) %>%
   # assume movement during the first 9 rows (purely to make the code work)
   mutate(LowVelocity = coalesce(LowVelocity, 0)) %>%
   
   ## create rolling window for averaging, ORIGINAL = 20
-  mutate(Event = (cumsum(LowVelocity) - lag(cumsum(LowVelocity), n = 4))/4) %>%
+  mutate(Event = (cumsum(LowVelocity) - lag(cumsum(LowVelocity), n = 5))/5) %>%
   
   ## the next lines are very hacky
   ## if average is > .9, count as fixation
@@ -137,20 +135,20 @@ Samples2 <- Samples %>%
   select(-c(.count, .groups)) %>% 
   
   ## otherwise count as saccade
-  mutate(SaccadeNum = ifelse(Event < 0.90, 1, 0),
+  mutate(SaccadeNum = ifelse(Event < 0.75, 1, 0),
          .count = ifelse(c(0, diff(SaccadeNum)) == 1, 1, 0),
          .count = coalesce(.count, 0),
          .groups = cumsum(.count),
          SaccadeNum = ifelse(SaccadeNum == 1, .groups, NA)) %>%
   select(-c(.count, .groups)) %>% 
-  mutate(Event = ifelse(Event >= 0.90, 'Fixation', 'Saccade'))
+  mutate(Event = ifelse(Event >= 0.75, 'Fixation', 'Saccade'))
 ```
 
 
 ### plotting event estimation: spatial
 ```{r}
 # PLOT FOR TRIAL 1
-ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & Trial == 1 & !is.na(Event)),
+ggplot(subset(Samples2, ParticipantID == '2019-2019-1_1_m11' & Trial == 1 & !is.na(Event)),
        aes(x = PositionX, y = PositionY, color = Event)) +
   geom_point(size = 0.3) +
   ## the following lines are for aesthetic purposes only 
@@ -164,7 +162,7 @@ ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & Trial == 1 & !is.n
   
 
 # FACET PLOT FOR EVERY TRIAL
-ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & !is.na(Event)),
+ggplot(subset(Samples2, ParticipantID == '2019-2019-1_1_m11' & !is.na(Event)),
        aes(x = PositionX, y = PositionY, color = Event)) +
   geom_point(size = 0.3) +
   ## the following lines are for aesthetic purposes only 
@@ -181,7 +179,7 @@ ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & !is.na(Event)),
 
 ### plotting event estimation: temporal & spatial
 ```{r}
-ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & Trial == 6 & !is.na(Event)),
+ggplot(subset(Samples2, ParticipantID == '2019-2019-1_1_m11' & Trial == 1 & !is.na(Event)),
        aes(x = TrialTime, y = PositionY, color = Event)) +
   geom_point(size = 0.6) +
   ## the following lines are for aesthetic purposes only 
@@ -191,7 +189,7 @@ ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & Trial == 6 & !is.n
   xlab('Time (s)') + ylab(paste('Position Y (', x$DominantEye, ')', sep = '')) +
   theme_janco_point()
 
-ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & !is.na(Event)),
+ggplot(subset(Samples2, ParticipantID == '2019-2019-1_1_m11' & !is.na(Event)),
        aes(x = TrialTime, y = PositionY, color = Event)) +
   geom_point(size = 0.5) +
   ## the following lines are for aesthetic purposes only 
@@ -236,22 +234,19 @@ rm(Fixations_raw, Saccades_raw)
 
 
 ### Fixations & Saccades from Samples2 (own parameters)
-I (Victor) have added a couple to the fixation to make it smooth with the logfiles. 
 ```{r}
-
 # FIXATIONS
 Fixations <- Samples2 %>% 
   group_by(ParticipantID, Trial, FixationNum) %>% 
   summarize(
     Task = Task[1],
     ParticipantGender = ParticipantGender[1],
+    SearchOrder = SearchOrder[1],
     StartTime = min(TrialTime),
     EndTime = max(TrialTime),
     Duration = max(TrialTime)-min(TrialTime),
     PositionX = median(PositionX),
-    PositionY = median(PositionY),
-    Year = Year[1],
-    PupilSize = median(PupilSize) #added. 
+    PositionY = median(PositionY)
   ) %>% 
   filter(!is.na(FixationNum))
 
@@ -274,115 +269,40 @@ Saccades <- Samples2 %>%
     PositionYEnd = max(PositionY),
     AmplitudeY = max(PositionY)-min(PositionY),
     MeanVelocityY = median(MeanVelocityY),
-    MeanAccellerationY = median(MeanAccellerationY),
-    Year = Year[1] #added year
+    MeanAccellerationY = median(MeanAccellerationY)
   ) %>% 
   filter(!is.na(SaccadeNum))
-```
-
-Merging logfiles and Fixations / Saccades
-Now we are looking at a subset of the data (2018).
-Do we agree that Riccardo/Fabio didn't find logfiles for 2019?
-
-```{r}
-
-# FIXATIONS 
-# Fixations "Trial" column --> numeric for compatibility. 
-Fixations$Trial <- as.numeric(Fixations$Trial)
-
-#loading logfiles
-logfiles <- read.csv("logfilesSE.csv")
-
-#deleting 2018
-Fixations$ParticipantID <- substring(Fixations$ParticipantID, 6, 20)
-
-# SOCIAL ENGAGMENT
-Fixations_SE_raw <- logfiles %>%
-  full_join(Fixations, by = c("Task", "Trial", "ParticipantID")) %>%
-  filter(Year == "2018") 
-
-Fixations_SE <- Fixations_SE_raw %>%
-  mutate(stim_person = ifelse(str_detect(Video, "m_"), "Male", "Female"),
-         direct = ifelse(str_detect(Video, "dir"), "Direct", "Non-direct"),
-         ost = ifelse(str_detect(Video, "_\\+o"), "Ostentive", "Non-ostentive")) 
-
-#SACCADES 
-#deleting 2018
-Saccades$ParticipantID <- substring(Saccades$ParticipantID, 6, 20)
-
-#Trial to numeric
-Saccades$Trial <- as.numeric(Saccades$Trial)
-
-# SOCIAL ENGAGMENT
-Saccades_SE_raw <- logfiles %>%
-  full_join(Saccades, by = c("Task", "Trial", "ParticipantID")) %>%
-  filter(Year == "2018")
-  #deleted the 2018 thing because that is 
-
-Saccades_SE <- Saccades_SE_raw %>%
-  mutate(stim_person = ifelse(str_detect(Video, "m_"), "Male", "Female"),
-         direct = ifelse(str_detect(Video, "dir"), "Direct", "Non-direct"),
-         ost = ifelse(str_detect(Video, "_\\+o"), "Ostentive", "Non-ostentive")) 
-
 ```
 
 
 CONTINUE AFTER DECIDING WHICH VERSION OF FIXATIONS/SACCADES ARE WE GOING WITH
 
-#Plots (only 2018)
-These plots are connected with the main hypothesis: 
-pupil size by ostension and directedness. 
 
+### append conditions in visual searching
 ```{r}
+ConditionsVisualSearch <- read_delim('ForagingOrder.csv', ';') %>%
+  mutate(Item = ifelse(Item == "doplhins.jpg", "dolphins.jpg", as.character(Item)))
 
-#differences in pupilsize by ostension & directedness (main hyp)
-#shows very different baselines (but otherwise not super informative.)
-ggplot(Fixations_SE, aes(x = StartTime, y = PupilSize, 
-                         color = ost)) +
-  geom_smooth() +
-  facet_grid(ParticipantID~direct) +
-  ylim(800,3000) #limits that are sensible. 
+#not valid. 
+Fixations <- merge(Fixations, ConditionsVisualSearch, 
+                   by = c('SearchOrder', 'Trial'), all = TRUE)
 
-#Suggesting that Ostensive is "slower". We need a growth-curve to explain. 
-#Also ostensive does seem to follow a consistently different trend than non-ost. 
-ggplot(Fixations_SE, aes(x = StartTime, y = PupilSize, color = ost)) +
-  geom_smooth() +
-  facet_grid(~direct)
-
-#pupilsize by ostension & directedness (weird. that ostensive = less pupilsize.)
-#Direct does seem to affect pupil size (especially in ostensive, interaction?)
-dodge <- position_dodge(width = 0.5)
-ggplot(Fixations_SE, aes(x = ost, y = PupilSize, fill = direct)) +
-  geom_violin(position = dodge)+
-  geom_boxplot(width=.1, outlier.colour = NA, position = dodge)+
-  geom_jitter(height = 0, width = 0.1) #some issue here with grouping by "diret". come back. 
-
-
+Fixations_VS <- Fixations %>%
+  filter(Task == "VisualSearch")
 ```
 
-Plots for bogus-hypothesis: 
-1. gender
-2. familiarity. 
+We want to keep our own parameters but we need to know which condition (star vs. count). The star vs. count is in the Fixations_EL & is all we need to transfer. 
 
 ```{r}
-#pupilsize by gender of participant & gender of stim person. 
-#Also, not very informative besdies differing baselines
-#Perhaps there is something about male_part. having steeper slope for female_pres.
-ggplot(Fixations_SE, aes(x = StartTime, y = PupilSize, color = ParticipantGender)) +
-  geom_smooth() +
-  facet_grid(ParticipantID~stim_person)
 
-#pupilsize by gender averaged.
-#Generally males slopes are steeper (for both female & male) but especially for female - so there might be something there. Also females have slightly steeper slope for Andreas. Looks completely fucked. 
-ggplot(Fixations_SE, aes(x = StartTime, y = PupilSize, color = ParticipantGender)) +
-  geom_smooth(method = "loess") + 
-  facet_grid(~stim_person) #somewhat weird w. crazy participant to the left. 
+Fixations$Trial <- as.numeric(Fixations$Trial)
 
-#pupilsize by gender, hmm.. female generally higher?
-#Generally larger pupilsize for female_presenter. Female_participants more spread out than males. Male_participants generally bigger pupil size. 
-ggplot(Fixations_SE, aes(x = ParticipantGender, y = PupilSize, fill = stim_person))+
-  geom_violin(position = dodge) +
-  geom_boxplot(width = .1, outlier.colour = NA, position = dodge)
+#doesn't work because no rows match (obviously)
+Fixations_fixed <- left_join(Fixations, Fixations_EL, by = c("ParticipantID", "Trial"))
+
+#subsets 
+Fixations_subset <- Fixations_EL %>%
+  
 
 ```
 
@@ -393,70 +313,26 @@ ggplot(Fixations_SE, aes(x = ParticipantGender, y = PupilSize, fill = stim_perso
 
 ```
 
-# MODELS, prediction 1
-This block is for the main hypothesis:
-pupil size (dilation) by ostension and direction (& start time).
-I will try both interaction between ostension & direction, & without interaction. 
-
-```{r}
-
-library(lme4)
-
-#interaction
-Model1 <- glmer(PupilSize ~ ost * direct + StartTime +
-            (1 + stim_person | ParticipantID) + 
-            (1 + ost * direct | ParticipantID), 
-            family = gaussian(link=log), 
-            data = Fixations_SE,
-            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
-
-summary(Model1)
-
-#additive 
-Model2 <- glmer(PupilSize ~ ost + direct + StartTime +
-            (1 + stim_person | ParticipantID) + 
-            (1 + ost + direct | ParticipantID), 
-            family = gaussian(link=log), 
-            data = Fixations_SE,
-            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
-
-summary(Model2)
-
-anova(Model1, Model2) #interaction best. 
-            
-```
-
-
-# MODELS, prediction 2
-This block is for the other hypothesis:
-Saccade Velocity by ostension and direction (& start time).
-I will try both interaction between ostension & direction, & without interaction. 
-
-```{r}
-# calculate saccade velocity. 
-library(tidyverse)
-
-#Making a mean velocity column based on PYTAGORAS BITCH
-Saccades_SE <- Saccades_SE %>%
-  mutate(MeanVelocity = sqrt(MeanVelocityX^2 + MeanVelocityY^2))
-
-#Model interaction
-Model3 <- glmer(MeanVelocity ~ ost * direct + StartTime +
-            (1 + stim_person | ParticipantID) + 
-            (1 + ost * direct | ParticipantID), 
-            family = gaussian(link=log), 
-            data = Saccades_SE,
-            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
-
-summary(Model3)
-```
-
-
-
 
 # RESULTS
 
 ```{r}
 
 ```
+
+# Plots for models / Results
+1. how do we know when it is star-search & when it is counting?
+
+```{r}
+
+#Duration: We need to know which trial is which (also for the models I would assume?)
+ggplot(Fixations, aes(x = Duration, y = CONDITION?)) + 
+  geom_density_ridges(scale = 3)
+
+#n_of_saccades: Still need to know condition/trial 
+
+
+
+```
+
 
