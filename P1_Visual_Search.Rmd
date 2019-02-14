@@ -29,8 +29,8 @@ a) working on raw data
 -Plotting raw data, while marking estimated events, 4 plots
 
 b) working on event data
--Create Fixations and Saccades datasets / Load in Fixations and Saccards from EyeLink
--
+-appending Item
+-appending Task
 
 ## A)
 ### loading data in right format
@@ -142,6 +142,8 @@ Samples2 <- Samples %>%
          SaccadeNum = ifelse(SaccadeNum == 1, .groups, NA)) %>%
   select(-c(.count, .groups)) %>% 
   mutate(Event = ifelse(Event >= 0.75, 'Fixation', 'Saccade'))
+
+rm(Samples)
 ```
 
 
@@ -203,36 +205,6 @@ ggplot(subset(Samples2, ParticipantID == '2019-2019-1_1_m11' & !is.na(Event)),
 
 
 ## B
-### load EyeLink data (blackbox parameters)
-```{r}
-# load in csvs
-Fixations_raw <- read_csv('fixations2018_2019.csv')
-Saccades_raw <- read_csv('saccades2018_2019.csv')
-
-# variable types
-Fixations_EL <- Fixations_raw %>%
-  mutate(
-    ParticipantID = as.factor(ParticipantID),
-    Year = as.factor(Year),
-    Task = as.factor(Task),
-    ParticipantGender = as.factor(ParticipantGender),
-    Item = as.factor(Item)
-  )
-
-Saccades_EL <- Saccades_raw %>%
-  mutate(
-    ParticipantID = as.factor(ParticipantID),
-    Direction = as.factor(Direction),
-    Year = as.factor(Year),
-    Task = as.factor(Task),
-    ParticipantGender = as.factor(ParticipantGender),
-    Item = as.factor(Item)
-  )
-
-rm(Fixations_raw, Saccades_raw)
-```
-
-
 ### Fixations & Saccades from Samples2 (own parameters)
 ```{r}
 # FIXATIONS
@@ -275,19 +247,74 @@ Saccades <- Samples2 %>%
 ```
 
 
-CONTINUE AFTER DECIDING WHICH VERSION OF FIXATIONS/SACCADES ARE WE GOING WITH
-
-
-### append conditions in visual searching
+### append itmes in visual searching
 ```{r}
 ConditionsVisualSearch <- read_delim('ForagingOrder.csv', ';') %>%
-  mutate(Item = ifelse(Item == "doplhins.jpg", "dolphins.jpg", as.character(Item)))
+  mutate(Item = ifelse(Item == "doplhins.jpg", "dolphins.jpg", as.character(Item)),
+         Trial = as.factor(Trial),
+         SearchOrder = as.factor(SearchOrder))
 
-Fixations <- merge(Fixations, ConditionsVisualSearch, 
-                   by = c('SearchOrder', 'Trial'), all = TRUE)
+Fixations_mrg <- full_join(Fixations, ConditionsVisualSearch, 
+                   by = c('Trial', 'SearchOrder'), all = TRUE)
+
+Saccades_mrg <- full_join(Saccades, ConditionsVisualSearch, 
+                   by = c('Trial', 'SearchOrder'), all = TRUE)
 
 Fixations_VS <- Fixations %>%
   filter(Task == "VisualSearch")
+
+Saccades_VS <- Saccades %>%
+  filter(Task == "VisualSearch")
+
+rm(ConditionsVisualSearch, Fixations, Saccades, Fixations_mrg, Saccades_mrg)
+```
+
+### append condition into VS
+```{r}
+### getting the conditions in there
+### number of combinations = 12 participants * 2 conditions * 5 trials - 6 missing trials of the first participant
+condition_task <- read_csv("fixations2018_2019.csv") %>%
+  filter(Task != "SocialEngagement") %>%
+  mutate(Trial = as.character(Trial),
+         Task = as.character(Task),
+         ParticipantID = as.character(ParticipantID)) %>%
+  select(Task, Trial, ParticipantID) %>%
+  unique.data.frame()
+
+Fixations_VS_2 <- Fixations_VS %>%
+  ungroup() %>%
+  mutate(Task = as.character(Task),
+         Trial = as.character(Trial),
+         ParticipantID = as.character(ParticipantID)) %>%
+  mutate(ParticipantID = substring(ParticipantID, 6, 17)) %>%
+  select(-Task) %>%
+  full_join(condition_task)
+
+Saccades_VS_2 <- Saccades_VS %>%
+  ungroup() %>%
+  mutate(Task = as.character(Task),
+         Trial = as.character(Trial),
+         ParticipantID = as.character(ParticipantID)) %>%
+  mutate(ParticipantID = substring(ParticipantID, 6, 17)) %>%
+  select(-Task) %>%
+  full_join(condition_task)
+```
+
+### clean global environment
+```{r}
+rm(Saccades_VS, Fixations_VS, condition_task)
+
+Fixations_VS_2 <- Fixations_VS_2 %>%
+  mutate(ParticipantID = as.factor(ParticipantID),
+         Trial = as.factor(Trial),
+         FixationNum = as.factor(FixationNum),
+         Task = as.factor(Task))
+
+Saccades_VS_2 <- Saccades_VS_2 %>%
+  mutate(ParticipantID = as.factor(ParticipantID),
+         Trial = as.factor(Trial),
+         FixationNum = as.factor(FixationNum),
+         Task = as.factor(Task))
 ```
 
 
