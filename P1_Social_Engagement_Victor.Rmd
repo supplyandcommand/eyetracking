@@ -448,7 +448,20 @@ Model3 <- glmer(MeanVelocity ~ ost * direct + StartTime +
             data = Saccades_SE,
             control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
 
-summary(Model3)
+summary(Model3) #nothing significant 
+
+#Model additive 
+Model4 <- glmer(MeanVelocity ~ ost + direct + StartTime +
+            (1 + stim_person | ParticipantID) + 
+            (1 + ost * direct | ParticipantID), 
+            family = gaussian(link=log), 
+            data = Saccades_SE,
+            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(Model4)
+
+anova(Model3, Model4) #model 4 is best (interaction). 
+
 ```
 
 
