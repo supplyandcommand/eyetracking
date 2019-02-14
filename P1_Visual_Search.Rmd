@@ -313,7 +313,7 @@ Fixations_VS_2 <- Fixations_VS_2 %>%
 Saccades_VS_2 <- Saccades_VS_2 %>%
   mutate(ParticipantID = as.factor(ParticipantID),
          Trial = as.factor(Trial),
-         FixationNum = as.factor(FixationNum),
+         SaccadeNum = as.factor(SaccadeNum),
          Task = as.factor(Task))
 ```
 
