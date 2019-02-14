@@ -318,10 +318,30 @@ Saccades_VS_2 <- Saccades_VS_2 %>%
 ```
 
 
+## NORMALISATION
+```{r}
+
+```
+
+
+
 # MODELS
 
 ```{r}
+Model1 <- glmer(Duration ~ Task + StartTime + 
+            (1 + Task | Item) + 
+            (1 + Task + StartTime | ParticipantID),
+            family = gaussian(link="log"), data = Fixations)
 
+Model2 <- glmer(NSaccades ~ Task + StartTime + 
+            (1 + Task | Item) + 
+            (1 + Task + StartTime | ParticipantID),
+            family = gaussian(link="log"), data = Saccades)
+
+Model3<- glmer(Amplitude ~ Task + StartTime + 
+            (1 + Task | Item) + 
+            (1 + Task + StartTime | ParticipantID),
+            family = gaussian(link="log"), data = Saccades)
 ```
 
 
