@@ -274,17 +274,19 @@ Saccades <- Samples2 %>%
     PositionYEnd = max(PositionY),
     AmplitudeY = max(PositionY)-min(PositionY),
     MeanVelocityY = median(MeanVelocityY),
-    MeanAccellerationY = median(MeanAccellerationY)
+    MeanAccellerationY = median(MeanAccellerationY),
+    Year = Year[1] #added year
   ) %>% 
   filter(!is.na(SaccadeNum))
 ```
 
-Merging logfiles and Fixations. 
+Merging logfiles and Fixations / Saccades
 Now we are looking at a subset of the data (2018).
 Do we agree that Riccardo/Fabio didn't find logfiles for 2019?
 
 ```{r}
 
+# FIXATIONS 
 # Fixations "Trial" column --> numeric for compatibility. 
 Fixations$Trial <- as.numeric(Fixations$Trial)
 
@@ -300,6 +302,24 @@ Fixations_SE_raw <- logfiles %>%
   filter(Year == "2018") 
 
 Fixations_SE <- Fixations_SE_raw %>%
+  mutate(stim_person = ifelse(str_detect(Video, "m_"), "Male", "Female"),
+         direct = ifelse(str_detect(Video, "dir"), "Direct", "Non-direct"),
+         ost = ifelse(str_detect(Video, "_\\+o"), "Ostentive", "Non-ostentive")) 
+
+#SACCADES 
+#deleting 2018
+Saccades$ParticipantID <- substring(Saccades$ParticipantID, 6, 20)
+
+#Trial to numeric
+Saccades$Trial <- as.numeric(Saccades$Trial)
+
+# SOCIAL ENGAGMENT
+Saccades_SE_raw <- logfiles %>%
+  full_join(Saccades, by = c("Task", "Trial", "ParticipantID")) %>%
+  filter(Year == "2018")
+  #deleted the 2018 thing because that is 
+
+Saccades_SE <- Saccades_SE_raw %>%
   mutate(stim_person = ifelse(str_detect(Video, "m_"), "Male", "Female"),
          direct = ifelse(str_detect(Video, "dir"), "Direct", "Non-direct"),
          ost = ifelse(str_detect(Video, "_\\+o"), "Ostentive", "Non-ostentive")) 
@@ -373,23 +393,62 @@ ggplot(Fixations_SE, aes(x = ParticipantGender, y = PupilSize, fill = stim_perso
 
 ```
 
-# MODELS, prediction 
+# MODELS, prediction 1
+This block is for the main hypothesis:
+pupil size (dilation) by ostension and direction (& start time).
+I will try both interaction between ostension & direction, & without interaction. 
 
 ```{r}
 
-#predicting condition based on pupil size & StartTime from fixations. 
+library(lme4)
 
+#interaction
+Model1 <- glmer(PupilSize ~ ost * direct + StartTime +
+            (1 + stim_person | ParticipantID) + 
+            (1 + ost * direct | ParticipantID), 
+            family = gaussian(link=log), 
+            data = Fixations_SE,
+            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
 
+summary(Model1)
 
-Model1 <- glmer(Pupilsize ~ Ostension * Directedness + Starttime +
-            (1 + gender_stim | ParticipantID) + 
-            (1 + Ostension * Directedness | ID, data = ??)
+#additive 
+Model2 <- glmer(PupilSize ~ ost + direct + StartTime +
+            (1 + stim_person | ParticipantID) + 
+            (1 + ost + direct | ParticipantID), 
+            family = gaussian(link=log), 
+            data = Fixations_SE,
+            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
 
-Model2 <- glmer(Saccade velocity ~ Ostension * Directedness + Starttime +
-            (1 + gender_stim | ParticipantID) + 
-            (1 + Ostension * Directedness | ID, data = ??)
+summary(Model2)
+
+anova(Model1, Model2) #interaction best. 
             
-            
+```
+
+
+# MODELS, prediction 2
+This block is for the other hypothesis:
+Saccade Velocity by ostension and direction (& start time).
+I will try both interaction between ostension & direction, & without interaction. 
+
+```{r}
+# calculate saccade velocity. 
+library(tidyverse)
+
+#Making a mean velocity column based on PYTAGORAS BITCH
+Saccades_SE <- Saccades_SE %>%
+  mutate(MeanVelocity = sqrt(MeanVelocityX^2 + MeanVelocityY^2))
+
+#Model interaction
+Model3 <- glmer(MeanVelocity ~ ost * direct + StartTime +
+            (1 + stim_person | ParticipantID) + 
+            (1 + ost * direct | ParticipantID), 
+            family = gaussian(link=log), 
+            data = Saccades_SE,
+            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(Model3)
 ```
 
 
