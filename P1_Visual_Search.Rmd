@@ -35,8 +35,12 @@ b) working on event data
 ## A)
 ### loading data in right format
 ```{r}
+# NO NEED TO RUN THIS! 
+# DATASET FOR MODELING IS IMPORTED LATER ON. 
+# FAST FORWARD TO NORMALIZATION
+
 # loading data
-Samples_raw <- read_csv('samples2018_2019.csv') %>%
+Samples_raw <- read_csv('data/samples2018_2019.csv') %>%
   filter(Task == "VisualSearch")
 
 # variable types
@@ -249,7 +253,7 @@ Saccades <- Samples2 %>%
 
 ### append itmes in visual searching
 ```{r}
-ConditionsVisualSearch <- read_delim('ForagingOrder.csv', ';') %>%
+ConditionsVisualSearch <- read_delim('data/ForagingOrder.csv', ';') %>%
   mutate(Item = ifelse(Item == "doplhins.jpg", "dolphins.jpg", as.character(Item)),
          Trial = as.factor(Trial),
          SearchOrder = as.factor(SearchOrder))
@@ -273,7 +277,7 @@ rm(ConditionsVisualSearch, Fixations, Saccades, Fixations_mrg, Saccades_mrg)
 ```{r}
 ### getting the conditions in there
 ### number of combinations = 12 participants * 2 conditions * 5 trials - 6 missing trials of the first participant
-condition_task <- read_csv("fixations2018_2019.csv") %>%
+condition_task <- read_csv("data/fixations2018_2019.csv") %>%
   filter(Task != "SocialEngagement") %>%
   mutate(Trial = as.character(Trial),
          Task = as.character(Task),
@@ -318,8 +322,42 @@ Saccades_VS_2 <- Saccades_VS_2 %>%
 ```
 
 
+######
+ready made data
+######
+```{r}
+Fixations_VS_2 <- read_csv("data/fixations_VS_2.csv") %>%
+  mutate_if(is.character, as.factor) %>%
+  mutate(SearchOrder = factor(SearchOrder),
+         Trial = factor(Trial))
+
+Saccades_VS_2 <- read_csv("data/saccades_VS_2.csv") %>%
+  mutate_if(is.character, as.factor) %>%
+  mutate(SearchOrder = factor(SearchOrder),
+         Trial = factor(Trial))
+```
+
+
+
 ## NORMALISATION
 ```{r}
+# x / max(x)ing
+Fixations_VS_3 <- Fixations_VS_2 %>%
+  mutate(Duration = Duration / max(Duration),
+         StartTime = StartTime / max(StartTime))
+
+Saccades_VS_3 <- Saccades_VS_2 %>%
+  mutate(Duration = Duration / max(Duration),
+         StartTime = StartTime / max(StartTime),
+         # amplitudes on different axes
+         AmplitudeX = AmplitudeX / max(AmplitudeX),
+         AmplitudeY = AmplitudeY / max(AmplitudeY),
+         # combined amplitude
+         Amplitude_comb = sqrt(AmplitudeX^2 + AmplitudeY^2),
+         Amplitude_comb = Amplitude_comb / max(Amplitude_comb),
+         # index
+         SaccadeNum = as.numeric(as.character(SaccadeNum)),
+         SaccadeNum = SaccadeNum / max(SaccadeNum))
 
 ```
 

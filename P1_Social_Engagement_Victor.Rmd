@@ -35,7 +35,7 @@ b) working on event data
 ### loading data in right format
 ```{r}
 # loading data
-Samples_raw <- read_csv('samples2018_2019.csv') %>%
+Samples_raw <- read_csv('data/samples2018_2019.csv') %>%
   filter(Task == "SocialEngagement")
 
 # variable types
@@ -208,8 +208,8 @@ ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & !is.na(Event)),
 ### load EyeLink data (blackbox parameters)
 ```{r}
 # load in csvs
-Fixations_raw <- read_csv('fixations2018_2019.csv')
-Saccades_raw <- read_csv('saccades2018_2019.csv')
+Fixations_raw <- read_csv('data/fixations2018_2019.csv')
+Saccades_raw <- read_csv('data/saccades2018_2019.csv')
 
 # variable types
 Fixations_EL <- Fixations_raw %>%
@@ -291,7 +291,7 @@ Do we agree that Riccardo/Fabio didn't find logfiles for 2019?
 Fixations$Trial <- as.numeric(Fixations$Trial)
 
 #loading logfiles
-logfiles <- read.csv("logfilesSE.csv")
+logfiles <- read.csv("data/logfilesSE.csv")
 
 #deleting 2018
 Fixations$ParticipantID <- substring(Fixations$ParticipantID, 6, 20)
