@@ -432,7 +432,7 @@ star_paths <- function(participant, item) {
     geom_path(alpha = .6, color = 'red') +
     geom_point(size = a$Duration*20,  color = '#6291D6', stroke = 1, shape = 21) +
     xlim(0,1600) + ylim(0,1100) +
-    labs(title = 'Scanpath of a successful star searching task',
+    labs(title = 'Scanpath of a successful star searching trial',
          subtitle = paste0("Participant: ",participant,", Item: ", item),
          x = "Position X",
          y = "Position Y") +
