@@ -492,7 +492,9 @@ Fixations_VS_3 <- Fixations_VS_2 %>%
          found = ifelse(ParticipantID %in% problem_ID &
                           Item == "penguins.jpg" &
                           Task == "VisualSearch_Star" &
-                          peng_star_aoi == 1, 1, 0))
+                          peng_star_aoi == 1, 1, 0)) %>%
+  # filtering out trial 4 of participant 1 (incomplete, broken participant)
+  filter(ParticipantID != "2018-1_1_f1" | Trial != "4")
 ```
 
 
