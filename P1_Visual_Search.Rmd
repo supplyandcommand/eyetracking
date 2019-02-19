@@ -439,23 +439,34 @@ star_paths <- function(participant, item) {
 
 star_paths("2018-5_1_m2", "penguins.jpg")
 star_paths("2018-6_3_m2", "penguins.jpg")
-star_paths("2019-3_1_f11", "flower.jpg")
 star_paths("2019-2_2_f22", "penguins.jpg")
 star_paths("2019-6_3_f22", "penguins.jpg")
 ```
 
-## AOI of the star
+## AOI of the star - finding the AOI
+```{r}
+# penguins
+test_peng <- Fixations_VS_2 %>%
+  filter(ParticipantID == "2019-6_3_f22" &
+           Item == "penguins.jpg") %>%
+  filter(FixationNum >= 0.66*n())
+
+summary(test_peng$PositionX)
+summary(test_peng$PositionY)
+```
+
+## AOI plot: PENGUINS
 ```{r}
 peng <- jpeg::readJPEG('pics/VisualSearch/penguins.jpg')
 peng <- grid::rasterGrob(peng, interpolate=TRUE)
 
-AOI = c(478, 502, 367, 392)
+AOI_data = c(485, 585, 635, 755)
+AOI = c(500-15, 570+15, 1081-740-15, 1081-650+15)
 
-test <- Fixations_VS_2 %>%
-  filter(ParticipantID == "2019-6_3_f22" &
-           Item == "penguins.jpg")
-
-ggplot(test, aes(x = PositionX, y = PositionY, color = ParticipantID, size = Duration)) +
+Fixations_VS_2 %>%
+  filter(ParticipantID == "2019-2_2_f22" & Item == "penguins.jpg") %>%
+  ggplot(aes(x = PositionX, y = 1081-PositionY, 
+                 color = ParticipantID, size = Duration)) +
   annotation_custom(peng, xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf) +
   geom_point(fill = 'white', stroke = 1, shape = 21, alpha = .7) +
   geom_rect(xmin=AOI[1], xmax=AOI[2], ymin=AOI[3], ymax=AOI[4], fill = NA, size = 1, color = 'yellow') +
@@ -466,16 +477,17 @@ ggplot(test, aes(x = PositionX, y = PositionY, color = ParticipantID, size = Dur
 ```
 
 
+
 ## flagging trials where star was found
 ```{r}
 problem_ID <- c("2018-5_1_m2", "2018-6_3_m2", "2019-2_2_f22", "2019-6_3_f22")
 
-# DOESN'T WORK, AOIS ARE FUCKED
-a <- Fixations_VS_2 %>%
-  mutate(peng_star_aoi = ifelse(PositionX > 478+20 &
-                                   PositionX < 502+20 &
-                                   PositionY > 367+20 &
-                                   PositionY < 392+20, 1, 0),
+# this will flag 73 rows as "found star"
+Fixations_VS_3 <- Fixations_VS_2 %>%
+  mutate(peng_star_aoi = ifelse(PositionX > 485 &
+                                   PositionX < 585 &
+                                   PositionY > 635 &
+                                   PositionY < 755, 1, 0),
          
          found = ifelse(ParticipantID %in% problem_ID &
                           Item == "penguins.jpg" &
