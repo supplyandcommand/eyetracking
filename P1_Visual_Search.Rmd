@@ -393,7 +393,11 @@ participants <- as.data.frame(table(Fixations_VS_3$ParticipantID)) %>%
 
 participants <- as.character(participants$Var1)
 
-plot_n_save2(participants[1])
+# test
+# plot_n_save2(participants[1])
+
+# loop - WATCH OUT, PRODUCES A LOT OF FILES
+lapply(participants, plot_n_save2)
 ```
 
 
