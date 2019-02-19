@@ -380,6 +380,78 @@ plot_n_save2(participants[2])
 lapply(participants, plot_n_save2)
 ```
 
+## AOI for star
+```{r}
+# DEFINING AOIs
+## penguins star AOI
+peng_star <- c(200, 600, 300, 600)
+
+## trees star AOI
+
+
+
+# PLOTS - EVIDENCE
+star_paths <- function(participant, item) {
+  a <- Fixations_VS_2 %>%
+    filter(ParticipantID == as.character(participant)) %>%
+    filter(Item == as.character(item))
+  
+  if(item == "penguins.jpg") {
+    img <- jpeg::readJPEG('pics/VisualSearch/penguins.jpg')
+    img <- grid::rasterGrob(img, interpolate=TRUE)
+  }
+  
+  if(item == "flower.jpg") {
+    img <- jpeg::readJPEG('pics/VisualSearch/flower.jpg')
+    img <- grid::rasterGrob(img, interpolate=TRUE)
+  }
+  
+  if(str_detect(a$ParticipantID[1], "2018")) {
+    
+    plot <- ggplot(a, aes(x = PositionX, y = 1081-PositionY)) +
+    annotation_custom(img, xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf) +
+    geom_rect(xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, fill = 'white', alpha = .002) +
+    geom_path(alpha = .6, color = 'red') +
+    geom_point(size = a$Duration*20,  color = '#6291D6', stroke = 1, shape = 21) +
+    xlim(0,1920) + ylim(0,1080) +
+    labs(title = 'Scanpath of a successful star searching task',
+         subtitle = paste0("Participant: ",participant,", Item: ", item),
+         x = "Position X",
+         y = "Position Y") +
+    theme_bw() + 
+    theme(legend.position = 'none')
+  
+  ggsave(sprintf("pics/star_found/file%s.png", 
+                   unique(a$ParticipantID)), plot)
+  }
+  
+  if(str_detect(a$ParticipantID[1], "2019")) {
+    plot <- ggplot(a, aes(x = PositionX, y = 1081-PositionY)) +
+    annotation_custom(img, xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf) +
+    geom_rect(xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, fill = 'white', alpha = .002) +
+    geom_path(alpha = .6, color = 'red') +
+    geom_point(size = a$Duration*20,  color = '#6291D6', stroke = 1, shape = 21) +
+    xlim(0,1600) + ylim(0,1100) +
+    labs(title = 'Scanpath of a successful star searching task',
+         subtitle = paste0("Participant: ",participant,", Item: ", item),
+         x = "Position X",
+         y = "Position Y") +
+    theme_bw() + 
+    theme(legend.position = 'none')
+  
+  ggsave(sprintf("pics/star_found/file%s.png", 
+                   unique(a$ParticipantID)), plot)
+  }
+  
+}
+
+star_paths("2018-5_1_m2", "penguins.jpg")
+star_paths("2018-6_3_m2", "penguins.jpg")
+star_paths("2019-3_1_f11", "flower.jpg")
+star_paths("2019-2_2_f22", "penguins.jpg")
+star_paths("2019-6_3_f22", "penguins.jpg")
+```
+
 
 
 # MODELS
