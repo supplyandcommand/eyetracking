@@ -92,6 +92,7 @@ rm(Samples_raw)
 
 
 ### plotting raw data
+--> what is the use/interpretation of this plot. 
 ```{r}
 x = subset(Samples, ParticipantID == '2019-2019-5_1_f2')
 ggplot(x, aes(x = PositionX, y = PositionY, color = TrialTime)) +
@@ -147,7 +148,8 @@ Samples2 <- Samples %>%
 ```
 
 
-### plotting event estimation: spatial
+### plotting event estimation: spatal
+--> also something about what we are saying here. 
 ```{r}
 # PLOT FOR TRIAL 1
 ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & Trial == 1 & !is.na(Event)),
@@ -180,6 +182,7 @@ ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & !is.na(Event)),
 
 
 ### plotting event estimation: temporal & spatial
+--> write something here as well (probably). 
 ```{r}
 ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & Trial == 6 & !is.na(Event)),
        aes(x = TrialTime, y = PositionY, color = Event)) +
@@ -201,37 +204,6 @@ ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & !is.na(Event)),
   xlab('Time (s)') + ylab(paste('Position Y (', x$DominantEye, ')', sep = '')) +
   facet_wrap(~Trial, ncol = 4) +
   theme_janco_point()
-```
-
-
-## B
-### load EyeLink data (blackbox parameters)
-```{r}
-# load in csvs
-Fixations_raw <- read_csv('fixations2018_2019.csv')
-Saccades_raw <- read_csv('saccades2018_2019.csv')
-
-# variable types
-Fixations_EL <- Fixations_raw %>%
-  mutate(
-    ParticipantID = as.factor(ParticipantID),
-    Year = as.factor(Year),
-    Task = as.factor(Task),
-    ParticipantGender = as.factor(ParticipantGender),
-    Item = as.factor(Item)
-  )
-
-Saccades_EL <- Saccades_raw %>%
-  mutate(
-    ParticipantID = as.factor(ParticipantID),
-    Direction = as.factor(Direction),
-    Year = as.factor(Year),
-    Task = as.factor(Task),
-    ParticipantGender = as.factor(ParticipantGender),
-    Item = as.factor(Item)
-  )
-
-rm(Fixations_raw, Saccades_raw)
 ```
 
 
@@ -326,10 +298,77 @@ Saccades_SE <- Saccades_SE_raw %>%
 
 ```
 
+H1 preprocessing 
 
-CONTINUE AFTER DECIDING WHICH VERSION OF FIXATIONS/SACCADES ARE WE GOING WITH
+```{r}
+#Plot showing that something is weird. 
+ggplot(Fixations_SE, aes(x = StartTime, y = PupilSize, color = ost)) +
+  geom_smooth() +
+  facet_grid(~direct)
 
-#Plots (only 2018)
+#Which person is weird? 
+which(Fixations_SE$StartTime > 7) #participantID 2018-1_2_f
+
+#Max StartTime excluding the outlier 
+Fixations_SE %>% 
+  filter(!ParticipantID == "2018-1_2_f") %>%
+  summarize(max(StartTime))
+
+#Excluding every datapoint which has StartTime > 6.325
+Fixations_SE <- Fixations_SE %>%
+  filter(!StartTime > 6.325)
+
+#Checking 
+max(Fixations_SE$StartTime) #now excluded
+
+#Plot showing that something is weird. 
+ggplot(Fixations_SE, aes(x = StartTime, y = PupilSize, color = ost)) +
+  geom_smooth() +
+  facet_grid(~direct)
+
+#New column (condition)
+Fixations_SE <- Fixations_SE %>%
+  mutate(condition = paste0(direct, ost)) 
+
+#Recoding to numbers
+Fixations_SE$condition <- as.factor(as.numeric(as.factor(Fixations_SE$condition)))
+
+#plot
+ggplot(Fixations_SE, aes(condition, PupilSize)) +
+  geom_boxplot()
+  #direct & non-ostensive = 1 
+  #direct & ostensive = 2
+  #non-direct & non-ostensive = 3
+  #non-direct & ostensive = 4
+
+
+```
+
+
+# H1 MODEL
+This block is for the main hypothesis:
+pupil size (dilation) by ostension and direction.
+participants can vary on stim_person, ost * direction, StartTime & StartTime^2
+
+```{r}
+
+library(lme4)
+#Maximal interaction model. 
+#However, do we actually want StartTime as a fixed effect?
+#I guess that we might want StartTime as fixed because that is what it varies with. 
+Model1 <- glmer(PupilSize ~ ost * direct + 
+            (1 + stim_person | ParticipantID) + 
+            (1 + ost * direct | ParticipantID) +
+            (1 + StartTime + I(StartTime^2) | ParticipantID), 
+            family = gaussian(link=log), 
+            data = Fixations_SE,
+            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(Model1) #nothing is significant. 
+            
+```
+
+H1 PLOTS
 These plots are connected with the main hypothesis: 
 pupil size by ostension and directedness. 
 
@@ -354,11 +393,108 @@ ggplot(Fixations_SE, aes(x = StartTime, y = PupilSize, color = ost)) +
 dodge <- position_dodge(width = 0.5)
 ggplot(Fixations_SE, aes(x = ost, y = PupilSize, fill = direct)) +
   geom_violin(position = dodge)+
-  geom_boxplot(width=.1, outlier.colour = NA, position = dodge)+
-  geom_jitter(height = 0, width = 0.1) #some issue here with grouping by "diret". come back. 
+  geom_boxplot(width=.1, outlier.colour = NA, position = dodge) #come back. geom_jitter
 
 
 ```
+
+H2 preprocessing (Saccades_SE)
+
+```{r}
+
+#Making a mean velocity column based on x & y velocity. 
+Saccades_SE <- Saccades_SE %>%
+  mutate(MeanVelocity = sqrt(MeanVelocityX^2 + MeanVelocityY^2))
+
+#Same participant has longer trial (of course)
+ggplot(Saccades_SE, aes(x = StartTime, y = MeanVelocity, color = ost)) +
+  geom_smooth() +
+  facet_grid(~direct)
+
+#Max StartTime excluding the outlier 
+Saccades_SE %>% 
+  filter(!ParticipantID == "2018-1_2_f") %>%
+  summarize(max(StartTime))
+
+#Excluding every datapoint which has StartTime > 6.426
+Saccades_SE <- Saccades_SE %>%
+  filter(!StartTime > 6.426)
+
+#Checking 
+max(Saccades_SE$StartTime) #now excluded
+
+#Plot showing that something is weird. 
+ggplot(Saccades_SE, aes(x = StartTime, y = MeanVelocity, color = ost)) +
+  geom_smooth() +
+  facet_grid(~direct)
+
+#New column (condition)
+Saccades_SE <- Saccades_SE %>%
+  mutate(condition = paste0(direct, ost)) 
+
+#Recoding to numbers
+Saccades_SE$condition <- as.factor(as.numeric(as.factor(Saccades_SE$condition)))
+
+#plot
+ggplot(Saccades_SE, aes(condition, MeanVelocity)) +
+  geom_boxplot()
+  #direct & non-ostensive = 1 
+  #direct & ostensive = 2
+  #non-direct & non-ostensive = 3
+  #non-direct & ostensive = 4
+
+```
+
+H2 MODELS (Saccades_SE)
+This block is for the other hypothesis:
+Saccade Velocity by ostension and direction (& start time).
+I will try both interaction between ostension & direction, & without interaction. 
+
+```{r}
+# calculate saccade velocity. 
+library(tidyverse)
+
+
+
+#Model interaction
+Model2 <- glmer(MeanVelocity ~ ost * direct +
+            (1 + stim_person | ParticipantID) + 
+            (1 + ost * direct | ParticipantID) +
+            (1 + StartTime | ParticipantID), 
+            family = gaussian(link=log), 
+            data = Saccades_SE,
+            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(Model2) #nothing significant 
+
+
+```
+
+Plots for mean velocity 
+
+```{r}
+dodge <- position_dodge(width = 0.5)
+
+#longer tails in ostensive & direct
+ggplot(Saccades_SE, aes(x = ost, y = MeanVelocity, fill = direct)) +
+  geom_violin(position = dodge)+
+  geom_boxplot(width=.1, outlier.colour = NA, position = dodge)
+
+#no difference in median. 
+p1 <- Saccades_SE %>%
+  filter(MeanVelocity < 50) %>%
+  ggplot(aes(x = ost, y = MeanVelocity, fill = direct)) +
+  geom_violin(position = dodge)+
+  geom_boxplot(width=.1, outlier.colour = NA, position = dodge)
+
+p1
+
+ggplot(Saccades_SE, aes(x = StartTime, y = MeanVelocity, color = ost)) +
+  geom_smooth() +
+  facet_grid(~direct)
+
+```
+
 
 Plots for bogus-hypothesis: 
 1. gender
@@ -385,86 +521,6 @@ ggplot(Fixations_SE, aes(x = ParticipantGender, y = PupilSize, fill = stim_perso
   geom_boxplot(width = .1, outlier.colour = NA, position = dodge)
 
 ```
-
-
-# MODELS
-
-```{r}
-
-```
-
-# MODELS, prediction 1
-This block is for the main hypothesis:
-pupil size (dilation) by ostension and direction (& start time).
-I will try both interaction between ostension & direction, & without interaction. 
-
-```{r}
-
-library(lme4)
-
-#interaction
-Model1 <- glmer(PupilSize ~ ost * direct + StartTime +
-            (1 + stim_person | ParticipantID) + 
-            (1 + ost * direct | ParticipantID), 
-            family = gaussian(link=log), 
-            data = Fixations_SE,
-            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
-
-summary(Model1)
-
-#additive 
-Model2 <- glmer(PupilSize ~ ost + direct + StartTime +
-            (1 + stim_person | ParticipantID) + 
-            (1 + ost + direct | ParticipantID), 
-            family = gaussian(link=log), 
-            data = Fixations_SE,
-            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
-
-summary(Model2)
-
-anova(Model1, Model2) #interaction best. 
-            
-```
-
-
-# MODELS, prediction 2
-This block is for the other hypothesis:
-Saccade Velocity by ostension and direction (& start time).
-I will try both interaction between ostension & direction, & without interaction. 
-
-```{r}
-# calculate saccade velocity. 
-library(tidyverse)
-
-#Making a mean velocity column based on PYTAGORAS BITCH
-Saccades_SE <- Saccades_SE %>%
-  mutate(MeanVelocity = sqrt(MeanVelocityX^2 + MeanVelocityY^2))
-
-#Model interaction
-Model3 <- glmer(MeanVelocity ~ ost * direct + StartTime +
-            (1 + stim_person | ParticipantID) + 
-            (1 + ost * direct | ParticipantID), 
-            family = gaussian(link=log), 
-            data = Saccades_SE,
-            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
-
-summary(Model3) #nothing significant 
-
-#Model additive 
-Model4 <- glmer(MeanVelocity ~ ost + direct + StartTime +
-            (1 + stim_person | ParticipantID) + 
-            (1 + ost * direct | ParticipantID), 
-            family = gaussian(link=log), 
-            data = Saccades_SE,
-            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
-
-summary(Model4)
-
-anova(Model3, Model4) #model 4 is best (interaction). 
-
-```
-
-
 
 
 # RESULTS
