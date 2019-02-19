@@ -367,7 +367,8 @@ Saccades_VS_3 <- Saccades_VS_2 %>%
 ```{r}
 plot_n_save2 <- function(participant) {
     one_person <- Fixations_VS_3 %>%
-      filter(ParticipantID == as.character(participant))
+      filter(ParticipantID == as.character(participant)) %>%
+      filter(Task == "VisualSearch_Star")
     
     plot <- ggplot(one_person, aes(x = PositionX, 
                                    y = 1081 - PositionY)) +
