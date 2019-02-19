@@ -264,10 +264,10 @@ Fixations_mrg <- full_join(Fixations, ConditionsVisualSearch,
 Saccades_mrg <- full_join(Saccades, ConditionsVisualSearch, 
                    by = c('Trial', 'SearchOrder'), all = TRUE)
 
-Fixations_VS <- Fixations %>%
+Fixations_VS <- Fixations_mrg %>%
   filter(Task == "VisualSearch")
 
-Saccades_VS <- Saccades %>%
+Saccades_VS <- Saccades_mrg %>%
   filter(Task == "VisualSearch")
 
 rm(ConditionsVisualSearch, Fixations, Saccades, Fixations_mrg, Saccades_mrg)
@@ -359,6 +359,41 @@ Saccades_VS_3 <- Saccades_VS_2 %>%
          SaccadeNum = as.numeric(as.character(SaccadeNum)),
          SaccadeNum = SaccadeNum / max(SaccadeNum))
 
+```
+
+
+# FINDING STAR TRIALS
+## generate scanpaths for everyone
+```{r}
+plot_n_save2 <- function(participant) {
+    one_person <- Fixations_VS_3 %>%
+      filter(ParticipantID == as.character(participant))
+    
+    plot <- ggplot(one_person, aes(x = PositionX, 
+                                   y = 1081 - PositionY)) +
+      geom_path(alpha = .6, color = '#F0B952') +
+      geom_point(size = one_person$Duration*5, 
+                 alpha = .6, color = '#6291D6', stroke = 1, shape = 21) +
+      # repelling text in plots: fuck that's good
+      # ggrepel::geom_text_repel(aes(label = FixationNum), size = 3, color = 'black') +
+      xlim(0,1920) + ylim(0,1080) +
+      labs(title = paste0("Visual search - ",
+                          as.character(unique(one_person$ParticipantID))),
+           subtitle = paste0("Seach order: ", 
+                             as.character(unique(one_person$SearchOrder)))) +
+      theme_bw() + theme(legend.position = 'none') +
+      facet_wrap(~Item)
+    
+    ggsave(sprintf("pics/star_trials/file%s.png", 
+                   unique(one_person$ParticipantID)), plot)
+}
+
+participants <- as.data.frame(table(Fixations_VS_3$ParticipantID)) %>%
+  filter(Freq != 0)
+
+participants <- as.character(participants$Var1)
+
+plot_n_save2(participants[1])
 ```
 
 
