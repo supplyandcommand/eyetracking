@@ -326,6 +326,9 @@ Fixations_VS_2 <- Fixations_VS %>%
          StartTime = StartTime / max(StartTime))
 
 Saccades_VS_2 <- Saccades_VS %>%
+  # removing 257 rows with NA aplitudes
+  filter(AmplitudeX != is.na(AmplitudeX) & 
+           AmplitudeY != is.na(AmplitudeY)) %>%
   mutate(Duration = Duration / max(Duration),
          StartTime = StartTime / max(StartTime),
          # amplitudes on different axes
