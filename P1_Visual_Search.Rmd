@@ -500,6 +500,10 @@ Fixations_VS_3 <- Fixations_VS_2 %>%
   filter(ParticipantID != "2018-1_1_f1" | Trial != "4") %>%
   filter(found != 1) %>%
   mutate(Duration = ifelse(Duration == 0, Duration + 0.0001, Duration))
+
+
+Saccades_VS_3 <- Saccades_VS_2 %>%
+  mutate(SaccadeNum = ifelse(SaccadeNum == 0, SaccadeNum + 0.0001, SaccadeNum))
 ```
 
 
@@ -515,8 +519,12 @@ Model1 <- glmer(Duration ~ Task + StartTime +
 Model2 <- glmer(SaccadeNum ~ Task + StartTime + 
             (1 + Task | Item) + 
             (1 + Task + StartTime | ParticipantID),
-            family = gaussian(link=log), data = Saccades_VS_2,
+            family = gaussian(link=log), data = Saccades_VS_3,
             control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+Model2_nonlog <- lmer(SaccadeNum ~ Task + StartTime + 
+            (1 + Task | Item) + 
+            (1 + Task + StartTime | ParticipantID), data = Saccades_VS_3)
 
 Model3<- glmer(Amplitude_comb ~ Task + StartTime + 
             (1 + Task | Item) + 
@@ -526,6 +534,7 @@ Model3<- glmer(Amplitude_comb ~ Task + StartTime +
 
 summary(Model1)
 summary(Model2)
+summary(Model2_nonlog)
 summary(Model3)
 ```
 
