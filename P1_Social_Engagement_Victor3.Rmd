@@ -1,0 +1,582 @@
+---
+title: "P1_Social_Engagement"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(pacman)
+p_load(tidyverse, lme4, lmerTest, ggunchained, wesanderson, sjPlot, sjmisc, sjlabelled, ggridges)
+
+setwd("C:/Users/victm/Dropbox/CogSci 4/Comp modeling/Eye Tracking/portfolio 1/Portfolio-1-Eyetracking")
+
+```
+
+Welcome to SOCIAL ENGAGEMENT,
+this markdown is divided into following sections:
+-preprocessing
+-models
+-results
+
+
+# PREPROCESSING
+Based on code from Fabio's day 4 Rmd
+
+Outline:
+a) working on raw data
+-Loading raw data from the scanner
+-Clean data (standardize dominant eye)
+-Plotting raw data, 2 plots
+-Event estimation
+-Plotting raw data, while marking estimated events, 4 plots
+
+b) working on event data
+-Create Fixations and Saccades datasets / Load in Fixations and Saccards from EyeLink
+
+## A)
+### loading data in right format
+```{r}
+# loading data
+Samples_raw <- read_csv('data/samples2018_2019.csv') %>%
+  filter(Task == "SocialEngagement")
+
+# variable types
+Samples_raw <- Samples_raw %>%
+  mutate(
+    ParticipantID = as.factor(ParticipantID),
+    Trial = as.factor(Trial),
+    DominantEye = ifelse(is.na(RightEye_PositionX), 'Left', 'Right'),
+    RightEye_PositionX = as.numeric(RightEye_PositionX),
+    RightEye_PositionY = as.numeric(RightEye_PositionY),
+    RightEye_PupilSize = as.numeric(RightEye_PupilSize),
+    RightEye_MeanVelocityX = as.numeric(RightEye_MeanVelocityX),
+    RightEye_MeanVelocityY = as.numeric(RightEye_MeanVelocityY),
+    RightEye_MeanAccellerationX = as.numeric(RightEye_MeanAccellerationX),
+    RightEye_MeanAccellerationY = as.numeric(RightEye_MeanAccellerationY),
+    LeftEye_PositionX = as.numeric(LeftEye_PositionX),
+    LeftEye_PositionY = as.numeric(LeftEye_PositionY),
+    LeftEye_PupilSize = as.numeric(LeftEye_PupilSize),
+    LeftEye_MeanVelocityX = as.numeric(LeftEye_MeanVelocityX),
+    LeftEye_MeanVelocityY = as.numeric(LeftEye_MeanVelocityY),
+    LeftEye_MeanAccellerationX = as.numeric(LeftEye_MeanAccellerationX),
+    LeftEye_MeanAccellerationY = as.numeric(LeftEye_MeanAccellerationY),
+    Year = as.factor(Year),
+    Task = as.factor(Task),
+    ParticipantGender = as.factor(ParticipantGender),     
+    SearchOrder = as.factor(SearchOrder),
+    # sampling rate "is"" 1000 Hz, we're converting to miliseconds
+    TrialTime = as.numeric(TrialTime*0.001),
+    TotTrialLengthInSeconds = as.numeric(TotTrialLengthInSeconds)
+  )
+```
+
+
+### cleaning of Samples
+```{r}
+Samples <- Samples_raw %>%
+  # convert right- and left- data into a single column
+  # note: position is in pixels, [0, 0] would be the bottom left corner
+  # some machines do it differently
+  mutate(
+    PositionX = ifelse(DominantEye == 'Right', RightEye_PositionX, LeftEye_PositionX),
+    PositionY = ifelse(DominantEye == 'Right', RightEye_PositionY, LeftEye_PositionY),
+    PupilSize = ifelse(DominantEye == 'Right', RightEye_PupilSize, LeftEye_PupilSize),
+    MeanVelocityX = ifelse(DominantEye == 'Right', RightEye_MeanVelocityX, LeftEye_MeanVelocityX),
+    MeanVelocityY = ifelse(DominantEye == 'Right', RightEye_MeanVelocityY, LeftEye_MeanVelocityY),
+    MeanAccellerationX = ifelse(DominantEye == 'Right', RightEye_MeanAccellerationX, LeftEye_MeanAccellerationX),
+    MeanAccellerationY = ifelse(DominantEye == 'Right', RightEye_MeanAccellerationY, LeftEye_MeanAccellerationY)
+  ) %>% 
+  # clear out the mess
+  select(-c(RightEye_PositionX, RightEye_PositionY, RightEye_PupilSize, RightEye_MeanVelocityX, RightEye_MeanVelocityY, RightEye_MeanAccellerationX, RightEye_MeanAccellerationY, LeftEye_PositionX, LeftEye_PositionY, LeftEye_PupilSize, LeftEye_MeanVelocityX, LeftEye_MeanVelocityY, LeftEye_MeanAccellerationX, LeftEye_MeanAccellerationY))
+
+rm(Samples_raw)
+```
+
+
+### plotting raw data
+--> what is the use/interpretation of this plot. 
+```{r}
+x = subset(Samples, ParticipantID == '2019-2019-5_1_f2')
+ggplot(x, aes(x = PositionX, y = PositionY, color = TrialTime)) +
+  geom_point(size = 0.3) +
+  ggtitle(paste('Sample data, subject:', x$ParticipantID, ', task:', x$Task )) +
+  xlab(paste('Position X (', x$DominantEye, ')', sep = '')) +
+  ylab(paste('Position Y (', x$DominantEye, ')', sep = '')) +
+  xlim(0,1500) + ylim(0,1250) +
+  facet_wrap(~Trial, ncol = 4) +
+  theme_janco_point() +
+  scale_color_gradientn(colours = wes_palette("Zissou1", 21, type = "continuous"))
+```
+
+
+### estimation of events
+--> we need to make sure that our values are also acceptable from a litterature point of view. I.e., Fabio said that velocity cut-off for saccade had been reported as between 15-50 (right now we have 10 which might be somewhat low). 
+--> generally we made the parameters less conservative based on visual inspection. 
+
+```{r}
+Samples2 <- Samples %>% 
+  group_by(ParticipantID, Trial) %>%
+  ## if velocity is < 20 degrees/sec, the eye is "not moving"
+  mutate(
+    # velocity goes from minus to plus depending on the direction, ORIGINAL = -20, 20. 
+    LowVelocity = ifelse(
+      as.numeric(MeanVelocityX)>-5 & #changed to 15. 
+      as.numeric(MeanVelocityX)<5, 1, 0)
+  ) %>%
+  # assume movement during the first 9 rows (purely to make the code work)
+  mutate(LowVelocity = coalesce(LowVelocity, 0)) %>%
+  
+  ## create rolling window for averaging, ORIGINAL = 20
+  mutate(Event = (cumsum(LowVelocity) - lag(cumsum(LowVelocity), n = 4))/4) %>%
+  
+  ## the next lines are very hacky
+  ## if average is > .9, count as fixation
+  ## ORIGINAL = 0.75
+  mutate(FixationNum = ifelse(Event >= 0.75, 1, 0),
+         .count = ifelse(c(0, diff(FixationNum)) == 1, 1, 0),
+         .count = coalesce(.count, 0),
+         .groups = cumsum(.count),
+         FixationNum = ifelse(FixationNum == 1, .groups, NA)) %>%
+  select(-c(.count, .groups)) %>% 
+  
+  ## otherwise count as saccade
+  mutate(SaccadeNum = ifelse(Event < 0.90, 1, 0),
+         .count = ifelse(c(0, diff(SaccadeNum)) == 1, 1, 0),
+         .count = coalesce(.count, 0),
+         .groups = cumsum(.count),
+         SaccadeNum = ifelse(SaccadeNum == 1, .groups, NA)) %>%
+  select(-c(.count, .groups)) %>% 
+  mutate(Event = ifelse(Event >= 0.90, 'Fixation', 'Saccade'))
+```
+
+
+### plotting event estimation: spatal
+--> also something about what we are saying here. 
+```{r}
+# PLOT FOR TRIAL 1
+ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & Trial == 1 & !is.na(Event)),
+       aes(x = PositionX, y = PositionY, color = Event)) +
+  geom_point(size = 0.3) +
+  ## the following lines are for aesthetic purposes only 
+  scale_color_manual(values = c('#6291D6', '#F0B952'), name = 'Event') +
+  guides(colour = guide_legend(override.aes = list(size=3))) +
+  ggtitle(paste('Sample data with event estimation, trial', x$Trial)) +
+  xlab(paste('Position X (', x$DominantEye, ')', sep = '')) +
+  ylab(paste('Position Y (', x$DominantEye, ')', sep = '')) +
+  xlim(0,1500) + ylim(0,1250) +
+  theme_janco_point()
+  
+
+# FACET PLOT FOR EVERY TRIAL
+ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & !is.na(Event)),
+       aes(x = PositionX, y = PositionY, color = Event)) +
+  geom_point(size = 0.3) +
+  ## the following lines are for aesthetic purposes only 
+  scale_color_manual(values = c('#6291D6', '#F0B952'), name = 'Event') +
+  guides(colour = guide_legend(override.aes = list(size=3))) +
+  ggtitle('Sample data with event estimation, all trials') +
+  xlab(paste('Position X (', x$DominantEye, ')', sep = '')) +
+  ylab(paste('Position Y (', x$DominantEye, ')', sep = '')) +
+  xlim(0,1500) + ylim(0,1250) +
+  facet_wrap(~Trial, ncol = 4) +
+  theme_janco_point()
+```
+
+
+### plotting event estimation: temporal & spatial
+--> write something here as well (probably). 
+```{r}
+ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & Trial == 6 & !is.na(Event)),
+       aes(x = TrialTime, y = PositionY, color = Event)) +
+  geom_point(size = 0.6) +
+  ## the following lines are for aesthetic purposes only 
+  scale_color_manual(values = c('#6291D6', '#F0B952'), name = 'Event') +
+  guides(colour = guide_legend(override.aes = list(size=3))) +
+  ggtitle(paste('Time sequence plot, trial', x$Trial)) +
+  xlab('Time (s)') + ylab(paste('Position Y (', x$DominantEye, ')', sep = '')) +
+  theme_janco_point()
+
+ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & !is.na(Event)),
+       aes(x = TrialTime, y = PositionY, color = Event)) +
+  geom_point(size = 0.5) +
+  ## the following lines are for aesthetic purposes only 
+  scale_color_manual(values = c('#6291D6', '#F0B952'), name = 'Event') +
+  guides(colour = guide_legend(override.aes = list(size=3))) +
+  ggtitle('Time sequence plot, all trials') +
+  xlab('Time (s)') + ylab(paste('Position Y (', x$DominantEye, ')', sep = '')) +
+  facet_wrap(~Trial, ncol = 4) +
+  theme_janco_point()
+```
+
+
+## B
+### load EyeLink data (blackbox parameters)
+```{r}
+# load in csvs
+Fixations_raw <- read_csv('data/fixations2018_2019.csv')
+Saccades_raw <- read_csv('data/saccades2018_2019.csv')
+
+# variable types
+Fixations_EL <- Fixations_raw %>%
+  mutate(
+    ParticipantID = as.factor(ParticipantID),
+    Year = as.factor(Year),
+    Task = as.factor(Task),
+    ParticipantGender = as.factor(ParticipantGender),
+    Item = as.factor(Item)
+  )
+
+Saccades_EL <- Saccades_raw %>%
+  mutate(
+    ParticipantID = as.factor(ParticipantID),
+    Direction = as.factor(Direction),
+    Year = as.factor(Year),
+    Task = as.factor(Task),
+    ParticipantGender = as.factor(ParticipantGender),
+    Item = as.factor(Item)
+  )
+
+rm(Fixations_raw, Saccades_raw)
+```
+
+
+
+### Fixations & Saccades from Samples2 (own parameters)
+I (Victor) have added a couple to the fixation to make it smooth with the logfiles. 
+```{r}
+
+# FIXATIONS
+Fixations <- Samples2 %>% 
+  group_by(ParticipantID, Trial, FixationNum) %>% 
+  summarize(
+    Task = Task[1],
+    ParticipantGender = ParticipantGender[1],
+    StartTime = min(TrialTime),
+    EndTime = max(TrialTime),
+    Duration = max(TrialTime)-min(TrialTime),
+    PositionX = median(PositionX),
+    PositionY = median(PositionY),
+    Year = Year[1],
+    PupilSize = median(PupilSize) #added. 
+  ) %>% 
+  filter(!is.na(FixationNum))
+
+# SACCADES
+Saccades <- Samples2 %>% 
+  group_by(ParticipantID, Trial, SaccadeNum) %>% 
+  summarize(
+    Task = Task[1],
+    ParticipantGender = ParticipantGender[1],
+    SearchOrder = SearchOrder[1],
+    StartTime = min(TrialTime),
+    EndTime = max(TrialTime),
+    Duration = max(TrialTime)-min(TrialTime),
+    PositionXStart = min(PositionX),
+    PositionXEnd = max(PositionX),
+    AmplitudeX = max(PositionX)-min(PositionX),
+    MeanVelocityX = median(MeanVelocityX),
+    MeanAccellerationX = median(MeanAccellerationX),
+    PositionYStart = min(PositionY),
+    PositionYEnd = max(PositionY),
+    AmplitudeY = max(PositionY)-min(PositionY),
+    MeanVelocityY = median(MeanVelocityY),
+    MeanAccellerationY = median(MeanAccellerationY),
+    Year = Year[1] #added year
+  ) %>% 
+  filter(!is.na(SaccadeNum))
+```
+
+Merging logfiles and Fixations / Saccades
+Now we are looking at a subset of the data (2018).
+Do we agree that Riccardo/Fabio didn't find logfiles for 2019?
+
+```{r}
+
+# FIXATIONS 
+# Fixations "Trial" column --> numeric for compatibility. 
+Fixations$Trial <- as.numeric(Fixations$Trial)
+
+#loading logfiles
+logfiles <- read.csv("data/logfilesSE.csv")
+
+#deleting 2018
+Fixations$ParticipantID <- substring(Fixations$ParticipantID, 6, 20)
+
+# SOCIAL ENGAGMENT
+Fixations_SE_raw <- logfiles %>%
+  full_join(Fixations, by = c("Task", "Trial", "ParticipantID")) %>%
+  filter(Year == "2018") 
+
+Fixations_SE <- Fixations_SE_raw %>%
+  mutate(stim_person = ifelse(str_detect(Video, "m_"), "Male", "Female"),
+         direct = ifelse(str_detect(Video, "dir"), "Direct", "Non-direct"),
+         ost = ifelse(str_detect(Video, "_\\+o"), "Ostentive", "Non-ostentive")) 
+
+#SACCADES 
+#deleting 2018
+Saccades$ParticipantID <- substring(Saccades$ParticipantID, 6, 20)
+
+#Trial to numeric
+Saccades$Trial <- as.numeric(Saccades$Trial)
+
+# SOCIAL ENGAGMENT
+Saccades_SE_raw <- logfiles %>%
+  full_join(Saccades, by = c("Task", "Trial", "ParticipantID")) %>%
+  filter(Year == "2018")
+  #deleted the 2018 thing because that is 
+
+Saccades_SE <- Saccades_SE_raw %>%
+  mutate(stim_person = ifelse(str_detect(Video, "m_"), "Male", "Female"),
+         direct = ifelse(str_detect(Video, "dir"), "Direct", "Non-direct"),
+         ost = ifelse(str_detect(Video, "_\\+o"), "Ostentive", "Non-ostentive")) 
+
+```
+
+Preprocessing (Fixations_SE, Saccades_SE). 
+
+```{r}
+#Plot showing that something is weird. 
+ggplot(Fixations_SE, aes(x = StartTime, y = PupilSize, color = ost)) +
+  geom_smooth() +
+  facet_grid(~direct)
+
+#Which person is weird? 
+which(Fixations_SE$StartTime > 7) #participantID 2018-1_2_f
+
+#Max StartTime excluding the outlier 
+Fixations_SE %>% 
+  filter(!ParticipantID == "2018-1_2_f") %>%
+  summarize(max(StartTime))
+
+#Excluding every datapoint which has StartTime > 6.325
+Fixations_SE <- Fixations_SE %>%
+  filter(!StartTime > 6.325)
+
+#Checking 
+max(Fixations_SE$StartTime) #now excluded
+
+#Plot showing that something is weird. 
+ggplot(Fixations_SE, aes(x = StartTime, y = PupilSize, color = ost)) +
+  geom_smooth() +
+  facet_grid(~direct)
+
+#New column (condition)
+Fixations_SE <- Fixations_SE %>%
+  mutate(condition = paste0(direct, ost)) 
+
+#Recoding to numbers
+Fixations_SE$condition <- as.factor(as.numeric(as.factor(Fixations_SE$condition)))
+
+#plot
+ggplot(Fixations_SE, aes(condition, PupilSize)) +
+  geom_violin() +
+  geom_boxplot(width = .1)
+  #direct & non-ostensive = 1 
+  #direct & ostensive = 2
+  #non-direct & non-ostensive = 3
+  #non-direct & ostensive = 4
+
+#making arousal variable
+Fixations_SE <- Fixations_SE %>%
+  mutate(arousal = ifelse(ParticipantGender == stim_person, "no", "yes"))
+
+#### FIXES IN SACCADE ####
+
+#Making a mean velocity column based on x & y velocity. 
+Saccades_SE <- Saccades_SE %>%
+  mutate(MeanVelocity = sqrt(MeanVelocityX^2 + MeanVelocityY^2))
+
+#making arousal variable
+Saccades_SE <- Saccades_SE %>%
+  mutate(arousal = ifelse(ParticipantGender == stim_person, "no", "yes"))
+
+#New column (condition)
+Saccades_SE <- Saccades_SE %>%
+  mutate(condition = paste0(direct, ost)) 
+
+#Recoding to numbers
+Saccades_SE$condition <- as.factor(as.numeric(as.factor(Saccades_SE$condition)))
+
+#Same participant has longer trial (of course)
+ggplot(Saccades_SE, aes(x = StartTime, y = MeanVelocity, color = ost)) +
+  geom_smooth() +
+  facet_grid(~direct)
+
+#Max StartTime excluding the outlier 
+Saccades_SE %>% 
+  filter(!ParticipantID == "2018-1_2_f") %>%
+  summarize(max(StartTime))
+
+#Excluding every datapoint which has StartTime > 6.426
+Saccades_SE <- Saccades_SE %>%
+  filter(!StartTime > 6.426)
+
+#Checking 
+max(Saccades_SE$StartTime) #now excluded
+
+#Plot showing that something is weird. 
+ggplot(Saccades_SE, aes(x = StartTime, y = MeanVelocity, color = ost)) +
+  geom_smooth() +
+  facet_grid(~direct)
+
+#New column (condition)
+Saccades_SE <- Saccades_SE %>%
+  mutate(condition = paste0(direct, ost)) 
+
+#Recoding to numbers
+Saccades_SE$condition <- as.factor(as.numeric(as.factor(Saccades_SE$condition)))
+
+#plot
+ggplot(Saccades_SE, aes(condition, MeanVelocity)) +
+  geom_boxplot()
+  #direct & non-ostensive = 1 
+  #direct & ostensive = 2
+  #non-direct & non-ostensive = 3
+  #non-direct & ostensive = 4
+```
+
+plotting distributions of dependent variables motivating models. 
+p1: fix. duration log-normally distributed by participants (& across)
+p2: Pupil size relatively normally dist. by part. (with a lot of noise)
+p3: Pupil size bimodally distributed across participants (maybe issue)
+
+```{r}
+
+## Check distribution of fixations duration (per participant)
+p1 <- ggplot(Fixations_SE, aes(Duration, fill = ParticipantID)) + geom_density(alpha = 0.3) #super long tails - power-law. 
+p1
+
+## same obtained across participants. 
+
+## Check distributions of pupil size (per participant)
+p2 <- ggplot(Fixations_SE, aes(PupilSize, fill = ParticipantID)) + geom_density(alpha = 0.3) #relatively normal (with noise). 
+p2
+
+## Check distribution of pupil size 
+p3 <- ggplot(Fixations_SE, aes(PupilSize, fill = "blue")) + geom_density(alpha = 0.3) 
+p3
+#bi-modal 
+
+## Check distribution of saccade velocity, power-law (also log-link)
+p4 <- ggplot(Saccades_SE, aes(MeanVelocity, fill = "blue")) + geom_density()
+p4
+
+```
+
+# H1 MODEL (PUPIL SIZE)
+
+```{r}
+
+#Maximal interaction model with everything (non log-link)
+h1_model1 <- lmer(PupilSize ~ ost * direct + StartTime + arousal + #include this
+            (1 + arousal | ParticipantID) + #gender, familiarity individual diff
+            (1 + ost * direct | ParticipantID) + #ost & dir as well. 
+            (1 + StartTime | ParticipantID), 
+            data = Fixations_SE,
+            control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(h1_model1) #StartTime. 
+anova(h1_model1)
+tab_model(h1_model1, show.re.var = FALSE, show.icc = FALSE, pred.labels = TRUE)
+
+qqnorm(residuals(h1_model1)) #looks terrible, one big outlier. 
+
+```
+
+H1 PLOTS (Pupil Size). 
+p5: by condition & participantID. 
+p6: by participantID & arousal. 
+p7: by time & with directedness/ostension as fill/color. 
+p7.1: by time & 
+
+```{r}
+#ridges showing why condition (ostension and directedness) is not significant. 
+p5 <- ggplot(Fixations_SE, aes(x = PupilSize, y = ParticipantID)) +
+  geom_density_ridges(alpha = 0.3, scale = 1.3, aes(fill = condition))  
+p5 #more variance between participants than bewteen conditions. 
+
+#ridges showing why gender/experimenter is not significant. 
+p6 <- ggplot(Fixations_SE, aes(x = PupilSize, y = ParticipantID)) +
+  geom_density_ridges(alpha = 0.3, scale = 1.3, aes(fill = arousal))  
+p6
+
+#ostension and directedness over time. 
+p7 <- ggplot(Fixations_SE, aes(x = StartTime, y = PupilSize, color = ost)) +
+  geom_smooth(method = "lm", aes(fill = direct)) 
+p7 #suggesting some effect. 
+
+#loess, showing that the slopes are not in fact linear (only in the small world of the model). 
+p7.1 <- ggplot(Fixations_SE, aes(x = StartTime, y = PupilSize, color = ost)) +
+  geom_smooth(method = "loess", aes(fill = direct)) 
+p7.1
+```
+
+H2: Fixation duration.
+One big model with everything in it. 
+
+```{r}
+
+h2_model1 <- glmer(Duration ~ ost * direct + StartTime + arousal +
+            (1 + arousal | ParticipantID) + #participants over stim. 
+            (1 + ost * direct | ParticipantID) + #participants over ost & dir. 
+            (1 + StartTime | ParticipantID), #participants over startTime. 
+            family = gaussian(link=log), #log link because of distribution. 
+            data = Fixations_SE,
+            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+#summary & qqnorm
+summary(h2_model1) #male participants have larger pupil size.
+qqnorm(residuals(h2_model1)) #looks terrible even with link = log. 
+exp(-2.472130) #0.07811212 female intercept
+exp(-2.472130 + 0.031310) #0.2280787 male intercept 
+time_diff <- 0.08708941 - 0.08440488
+time_diff
+#looking better
+tab_model(h2_model1, show.re.var = FALSE, show.icc = FALSE, pred.labels = TRUE)
+
+#obtaining r2
+library(MuMIn)
+r.squaredGLMM(h2_model1)
+
+#obtaining f-statistic
+library("pbkrtest")
+
+KRmodcomp(h2_model1)
+
+
+```
+
+H2 Plots:
+p7: male participants fixate longer than female participants. 
+p8: no big difference in fixation between conditions. 
+
+```{r}
+
+#duration by start time (color = participant ID)
+p8 <- ggplot(Fixations_SE, aes(x = StartTime, y = Duration, color = ParticipantID)) +
+  geom_smooth(method = "lm") 
+p8 
+
+#density plot of fixation duration by condition. 
+p9 <- ggplot(Fixations_SE, aes(Duration, fill = condition)) + geom_density(alpha = 0.2)
+p9 #no big difference between conditions. 
+
+```
+
+H3
+
+```{r}
+
+h3_model1 <- glmer(MeanVelocity ~ ost * direct + StartTime + arousal +
+            (1 + stim_person | ParticipantID) + #participants over stim. 
+            (1 + ost * direct | ParticipantID) + #participants over ost & dir. 
+            (1 + StartTime | ParticipantID), #participants over startTime. 
+            family = gaussian(link=log), #log link because of distribution. 
+            data = Saccades_SE,
+            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(h3_model1)
+
+```
+
