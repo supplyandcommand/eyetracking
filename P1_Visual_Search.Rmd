@@ -522,26 +522,19 @@ Model2 <- glmer(SaccadeNum ~ Task + StartTime +
             family = gaussian(link=log), data = Saccades_VS_3,
             control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
 
-Model2_nonlog <- lmer(SaccadeNum ~ Task + StartTime + 
-            (1 + Task | Item) + 
-            (1 + Task + StartTime | ParticipantID), data = Saccades_VS_3)
-
 Model3<- glmer(Amplitude_comb ~ Task + StartTime + 
             (1 + Task | Item) + 
             (1 + Task + StartTime | ParticipantID),
             family = gaussian(link=log), data = Saccades_VS_2,
             control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
-
-summary(Model1)
-summary(Model2)
-summary(Model2_nonlog)
-summary(Model3)
 ```
 
 
 # RESULTS
 
 ```{r}
-
+summary(Model1)
+summary(Model2)
+summary(Model3)
 ```
 
