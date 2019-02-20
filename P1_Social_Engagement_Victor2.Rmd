@@ -8,6 +8,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(pacman)
 p_load(tidyverse, lme4, ggunchained, wesanderson)
+
+setwd("C:/Users/victm/Dropbox/CogSci 4/Comp modeling/Eye Tracking/portfolio 1/Portfolio-1-Eyetracking")
+
 ```
 
 Welcome to SOCIAL ENGAGEMENT,
@@ -207,8 +210,6 @@ ggplot(subset(Samples2, ParticipantID == '2019-2019-5_1_f2' & !is.na(Event)),
 ```
 
 
-<<<<<<< HEAD
-=======
 ## B
 ### load EyeLink data (blackbox parameters)
 ```{r}
@@ -387,18 +388,40 @@ participants can vary on stim_person, ost * direction, StartTime & StartTime^2
 
 ```{r}
 
-#Maximal interaction model. 
-#However, do we actually want StartTime as a fixed effect?
-#I guess that we might want StartTime as fixed because that is what it varies with. 
-Model1 <- glmer(PupilSize ~ ost * direct * (StartTime + I(StartTime^2)) +
-            (1 + stim_person | ParticipantID) + #gender, familiarity
+#Maximal interaction model with everything.  
+Model1 <- glmer(PupilSize ~ ost * direct + StartTime + stim_person * ParticipantGender + #include this
+            (1 + stim_person | ParticipantID) + #gender, familiarity individual diff
             (1 + ost * direct | ParticipantID) + #
-            (1 + StartTime + I(StartTime^2) | ParticipantID), 
+            (1 + StartTime | ParticipantID), #center StartTime around 0 & linear 
             family = gaussian(link=log), 
             data = Fixations_SE,
             control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
 
-summary(Model1) #nothing is significant. 
+summary(Model1) #nothing. 
+
+#plot of participants (randomly thrown in there)
+ggplot(Fixations_SE, aes(StartTime, PupilSize, fill = ParticipantID)) +
+  geom_smooth(aes(color = ParticipantGender), method = "lm") #terrible, would be nice to have comp. 
+
+#Only modelling StartTime (just to see)
+Model1_remix <- glmer(PupilSize ~ ost * direct + stim_person * ParticipantGender + StartTime +
+            (1 + StartTime | ParticipantID), 
+            family = gaussian(link=log), 
+            data = Fixations_SE,
+            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(Model1_remix) #very significant stuff. 
+
+#Only ost * direction, everything else modelled away. 
+Model_remix2 <- glmer(PupilSize ~ ost * direct +
+            (1 + StartTime | ParticipantID) + #does this make sense?
+            (1 + stim_person | ParticipantID) + #does this make sense?
+            (1 + ParticipantGender | ParticipantID), #does this make sense?
+            family = gaussian(link=log), 
+            data = Fixations_SE,
+            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(Model_remix2) #super significant main effects & significant interaction. 
 
 ```
 
