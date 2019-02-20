@@ -380,16 +380,8 @@ plot_n_save2(participants[2])
 lapply(participants, plot_n_save2)
 ```
 
-## AOI for star
+## plotting trials where star was found
 ```{r}
-# DEFINING AOIs
-## penguins star AOI
-peng_star <- c(200, 600, 300, 600)
-
-## trees star AOI
-
-
-
 # PLOTS - EVIDENCE
 star_paths <- function(participant, item) {
   a <- Fixations_VS_2 %>%
@@ -447,11 +439,63 @@ star_paths <- function(participant, item) {
 
 star_paths("2018-5_1_m2", "penguins.jpg")
 star_paths("2018-6_3_m2", "penguins.jpg")
-star_paths("2019-3_1_f11", "flower.jpg")
 star_paths("2019-2_2_f22", "penguins.jpg")
 star_paths("2019-6_3_f22", "penguins.jpg")
 ```
 
+## AOI of the star - finding the AOI
+```{r}
+# penguins
+test_peng <- Fixations_VS_2 %>%
+  filter(ParticipantID == "2019-6_3_f22" &
+           Item == "penguins.jpg") %>%
+  filter(FixationNum >= 0.66*n())
+
+summary(test_peng$PositionX)
+summary(test_peng$PositionY)
+```
+
+## AOI plot: PENGUINS
+```{r}
+peng <- jpeg::readJPEG('pics/VisualSearch/penguins.jpg')
+peng <- grid::rasterGrob(peng, interpolate=TRUE)
+
+AOI_data = c(485, 585, 635, 755)
+AOI = c(500-15, 570+15, 1081-740-15, 1081-650+15)
+
+Fixations_VS_2 %>%
+  filter(ParticipantID == "2019-2_2_f22" & Item == "penguins.jpg") %>%
+  ggplot(aes(x = PositionX, y = 1081-PositionY, 
+                 color = ParticipantID, size = Duration)) +
+  annotation_custom(peng, xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf) +
+  geom_point(fill = 'white', stroke = 1, shape = 21, alpha = .7) +
+  geom_rect(xmin=AOI[1], xmax=AOI[2], ymin=AOI[3], ymax=AOI[4], fill = NA, size = 1, color = 'yellow') +
+  ## the following lines are for aesthetic purposes only
+  xlim(0,1600) + ylim(0,1100) +
+  ggtitle('Areas of interest') +
+  theme_bw() + theme(legend.position = 'none')
+```
+
+
+
+## flagging trials where star was found
+```{r}
+problem_ID <- c("2018-5_1_m2", "2018-6_3_m2", "2019-2_2_f22", "2019-6_3_f22")
+
+# this will flag 73 rows as "found star"
+Fixations_VS_3 <- Fixations_VS_2 %>%
+  mutate(peng_star_aoi = ifelse(PositionX > 485 &
+                                   PositionX < 585 &
+                                   PositionY > 635 &
+                                   PositionY < 755, 1, 0),
+         
+         found = ifelse(ParticipantID %in% problem_ID &
+                          Item == "penguins.jpg" &
+                          Task == "VisualSearch_Star" &
+                          peng_star_aoi == 1, 1, 0)) %>%
+  # filtering out trial 4 of participant 1 (incomplete, broken participant)
+  filter(ParticipantID != "2018-1_1_f1" | Trial != "4")
+```
 
 
 # MODELS
