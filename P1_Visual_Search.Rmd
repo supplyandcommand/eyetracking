@@ -326,6 +326,9 @@ Fixations_VS_2 <- Fixations_VS %>%
          StartTime = StartTime / max(StartTime))
 
 Saccades_VS_2 <- Saccades_VS %>%
+  # removing 257 rows with NA aplitudes
+  filter(AmplitudeX != is.na(AmplitudeX) & 
+           AmplitudeY != is.na(AmplitudeY)) %>%
   mutate(Duration = Duration / max(Duration),
          StartTime = StartTime / max(StartTime),
          # amplitudes on different axes
@@ -494,7 +497,13 @@ Fixations_VS_3 <- Fixations_VS_2 %>%
                           Task == "VisualSearch_Star" &
                           peng_star_aoi == 1, 1, 0)) %>%
   # filtering out trial 4 of participant 1 (incomplete, broken participant)
-  filter(ParticipantID != "2018-1_1_f1" | Trial != "4")
+  filter(ParticipantID != "2018-1_1_f1" | Trial != "4") %>%
+  filter(found != 1) %>%
+  mutate(Duration = ifelse(Duration == 0, Duration + 0.0001, Duration))
+
+
+Saccades_VS_3 <- Saccades_VS_2 %>%
+  mutate(SaccadeNum = ifelse(SaccadeNum == 0, SaccadeNum + 0.0001, SaccadeNum))
 ```
 
 
@@ -504,23 +513,28 @@ Fixations_VS_3 <- Fixations_VS_2 %>%
 Model1 <- glmer(Duration ~ Task + StartTime + 
             (1 + Task | Item) + 
             (1 + Task + StartTime | ParticipantID),
-            family = gaussian(link="log"), data = Fixations)
+            family = gaussian(link=log), data = Fixations_VS_3,
+            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
 
-Model2 <- glmer(NSaccades ~ Task + StartTime + 
+Model2 <- glmer(SaccadeNum ~ Task + StartTime + 
             (1 + Task | Item) + 
             (1 + Task + StartTime | ParticipantID),
-            family = gaussian(link="log"), data = Saccades)
+            family = gaussian(link=log), data = Saccades_VS_3,
+            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
 
-Model3<- glmer(Amplitude ~ Task + StartTime + 
+Model3<- glmer(Amplitude_comb ~ Task + StartTime + 
             (1 + Task | Item) + 
             (1 + Task + StartTime | ParticipantID),
-            family = gaussian(link="log"), data = Saccades)
+            family = gaussian(link=log), data = Saccades_VS_2,
+            control = glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
 ```
 
 
 # RESULTS
 
 ```{r}
-
+summary(Model1)
+summary(Model2)
+summary(Model3)
 ```
 
