@@ -443,24 +443,30 @@ p3: Pupil size bimodally distributed across participants (maybe issue)
 
 ```{r}
 
-## Check distribution of fixations duration (per participant)
-p1 <- ggplot(Fixations_SE, aes(Duration, fill = ParticipantID)) + geom_density(alpha = 0.3) #super long tails - power-law. 
-p1
+
 
 ## same obtained across participants. 
+p1 <- ggplot(Fixations_SE, aes(PupilSize, fill = "red")) + geom_density(alpha = 0.3) 
+p1
 
 ## Check distributions of pupil size (per participant)
 p2 <- ggplot(Fixations_SE, aes(PupilSize, fill = ParticipantID)) + geom_density(alpha = 0.3) #relatively normal (with noise). 
 p2
 
-## Check distribution of pupil size 
-p3 <- ggplot(Fixations_SE, aes(PupilSize, fill = "blue")) + geom_density(alpha = 0.3) 
+
+
+## Check distribution of fixations duration (per participant)
+p3 <- ggplot(Fixations_SE, aes(Duration, fill = "red")) + geom_density(alpha = 0.3) #super long tails - power-law. 
 p3
 #bi-modal 
 
 ## Check distribution of saccade velocity, power-law (also log-link)
-p4 <- ggplot(Saccades_SE, aes(MeanVelocity, fill = "blue")) + geom_density()
+p4 <- ggplot(Saccades_SE, aes(MeanVelocity, fill = "red")) + geom_density(alpha = 0.3)
 p4
+
+## combining pre-plots (include this.)
+library(cowplot)
+plot_grid(p1, p2, p3, p4, labels = c("bimodal", "normal (ish)", "power-law", "power-law")) 
 
 ```
 
@@ -510,6 +516,9 @@ p7 #suggesting some effect.
 p7.1 <- ggplot(Fixations_SE, aes(x = StartTime, y = PupilSize, color = ost)) +
   geom_smooth(method = "loess", aes(fill = direct)) 
 p7.1
+
+#combining: INCLUDE THIS!
+plot_grid(p5, p6, p7, p7.1, labels = c("condition", "arousal", "linear", "loess"))
 ```
 
 H2: Fixation duration.
@@ -554,7 +563,7 @@ p8: no big difference in fixation between conditions.
 ```{r}
 
 #duration by start time (color = participant ID)
-p8 <- ggplot(Fixations_SE, aes(x = StartTime, y = Duration, color = ParticipantID)) +
+p8 <- ggplot(Fixations_SE, aes(x = StartTime, y = Duration, color = condition)) +
   geom_smooth(method = "lm") 
 p8 
 
@@ -562,9 +571,11 @@ p8
 p9 <- ggplot(Fixations_SE, aes(Duration, fill = condition)) + geom_density(alpha = 0.2)
 p9 #no big difference between conditions. 
 
+#combined, INCLUDE THIS
+plot_grid(p8, p9, labels = c("duration by time", "Duration distribution"))
 ```
 
-H3
+H3 saccade velocity
 
 ```{r}
 
@@ -579,4 +590,5 @@ h3_model1 <- glmer(MeanVelocity ~ ost * direct + StartTime + arousal +
 summary(h3_model1)
 
 ```
+
 
