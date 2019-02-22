@@ -7,7 +7,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 
 library(pacman)
-p_load(tidyverse, lme4, ggunchained, wesanderson
+p_load(tidyverse, lme4, ggunchained, wesanderson)
 ```
 
 Welcome,
