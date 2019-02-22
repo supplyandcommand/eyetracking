@@ -7,7 +7,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 
 library(pacman)
-p_load(tidyverse, lme4, ggunchained, wesanderson)
+p_load(tidyverse, lme4, ggunchained, wesanderson
 ```
 
 Welcome,
@@ -537,4 +537,37 @@ summary(Model1)
 summary(Model2)
 summary(Model3)
 ```
+
+#SCAN PATHS
+
+```{r}
+levels(Fixations_VS_3$ParticipantID)
+x1 = subset(Fixations_VS_3, ParticipantID =='2019-4_2_m12' & Item == 'sheep.jpg') #star-searching
+x2 = subset(Fixations_VS_3, ParticipantID =='2018-2_2_f2' & Item == 'sheep.jpg') #counting
+
+p_load(jpeg, grid)
+img <- jpeg::readJPEG('Pics/VisualSearch/sheep.jpg')
+img <- grid::rasterGrob(img, interpolate=TRUE) #trano rastersforms jpeg int
+
+ggplot(x1, aes(x = PositionX, y = 1081-PositionY)) +
+  annotation_custom(img, xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf) +
+  geom_rect(xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, fill = 'white', alpha = .01) + #draw rectangle on top of image to make the picture less sharp because annotation_custom takes no alpha variable
+  geom_path(alpha = .6, color = 'red') +
+  geom_point(size = x$Duration*20,  color = '#6291D6', stroke = 1, shape = 21) +
+  ggrepel::geom_text_repel(aes(label = FixationNum), size = 3, color = 'blue') +
+  xlim(0,1920) + ylim(0,1080) +
+  ggtitle('Scanpath for star-searching task') +
+  theme_bw() + theme(legend.position = 'none')
+
+ggplot(x2, aes(x = PositionX, y = 1081-PositionY)) +
+  annotation_custom(img, xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf) +
+  geom_rect(xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, fill = 'white', alpha = .01) + #draw rectangle on top of image to make the picture less sharp because annotation_custom takes no alpha variable
+  geom_path(alpha = .6, color = 'red') +
+  geom_point(size = y$Duration*20,  color = '#6291D6', stroke = 1, shape = 21) +
+  ggrepel::geom_text_repel(aes(label = FixationNum), size = 3, color = 'blue') +
+  xlim(0,1920) + ylim(0,1080) +
+  ggtitle('Scanpath for counting task') +
+  theme_bw() + theme(legend.position = 'none')
+```
+
 
