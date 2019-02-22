@@ -7,6 +7,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 
 library(pacman)
+devtools:install_github("jancounchained/ggunchained")
+devtools:install_github("jancounchained/wesanderson")
 p_load(tidyverse, lme4, ggunchained, wesanderson)
 ```
 
