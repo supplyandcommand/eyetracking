@@ -7,6 +7,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 
 library(pacman)
+devtools:install_github("jancounchained/ggunchained")
+devtools:install_github("jancounchained/wesanderson")
 p_load(tidyverse, lme4, lmerTest, ggunchained, wesanderson, sjPlot, sjmisc, sjlabelled, ggridges)
 
 setwd("C:/Users/victm/Dropbox/CogSci 4/Comp modeling/Eye Tracking/portfolio 1/Portfolio-1-Eyetracking")
